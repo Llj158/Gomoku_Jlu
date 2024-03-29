@@ -1,7 +1,47 @@
 #include <iostream>
 #include "head.h"
+#include "PossiblePositionManager.h"
+#include "ACSearcher.h"
 
 using namespace std;
+
+
+/*------------------------全局变量-------------------------*/
+
+int board[15][15] = { 0 };
+long long boardZobristValue[2][SIZE][SIZE];
+long long currentZobristValue; // 当前局面的zobrist值
+HashItem hashItems[HASH_ITEM_INDEX_MASK + 1];
+
+int scores[2][72];  //保存棋局分数（2个角色72行，包括横竖撇捺）
+int allScore[2];    //局面总评分（2个角色）
+
+ACSearcher acs;
+
+PossiblePositionManager ppm;
+
+
+vector<Pattern> patterns = {
+    {"11111", 50000},
+    {"011110", 4320},
+    {"011100", 720},
+    {"001110", 720},
+    {"011010", 720},
+    {"010110", 720},
+    {"11110", 720},
+    {"01111", 720},
+    {"11011", 720},
+    {"10111", 720},
+    {"11101", 720},
+    {"001100", 120},
+    {"001010", 120},
+    {"010100", 120},
+    {"000100", 20},
+    {"001000", 20},
+};
+
+/*------------------------全局变量-------------------------*/
+
 
 void recordHashItem(int depth, int score, HashItem::Flag flag)
 {
@@ -84,7 +124,7 @@ Position searchResult;
 int evaluatePoint(Position p)
 {
     int result;
-    unsigned int i, j;
+    int i, j;
 
     result = 0;
     int role = HUMAN; // 两个角色都要评分，所以这里先设为HUMAN
@@ -175,7 +215,7 @@ void updateScore(Position p)
 
     string lines[4];
     string lines1[4];
-    unsigned int i, j;
+    int i, j;
     int role = HUMAN;
 
     // 竖
@@ -361,8 +401,7 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
         ppm.AddPossiblePositions(board, p);
 
         int val = -abSearch(depth - 1, -beta, -alpha, currentSearchRole == HUMAN ? COMPUTOR : HUMAN);
-        if (depth == DEPTH)
-            cout << "score(" << p.x << "," << p.y << "):" << val << endl;
+
 
         // 取消上一次增加的可能出现的位置
         ppm.Rollback();
@@ -430,6 +469,38 @@ void init()
     randomBoardZobristValue();
     currentZobristValue = random64();
 }
+
+
+//人类下棋，传给界面
+Position nextStep(int x, int y) {
+
+
+    board[x][y] = HUMAN;
+    currentZobristValue ^= boardZobristValue[HUMAN - 1][x][y];
+    updateScore(Position(x, y));
+
+    //增加可能出现的位置
+    ppm.AddPossiblePositions(board, Position(x, y));
+
+    Position result = getAGoodMove();
+
+    board[result.x][result.y] = COMPUTOR;
+    currentZobristValue ^= boardZobristValue[COMPUTOR - 1][result.x][result.y];
+    updateScore(result);
+
+    //增加可能出现的位置
+    ppm.AddPossiblePositions(board, result);
+
+    return result;
+}
+void updataSituation(int x, int y, int role)
+{
+	board[x][y] = role;
+	currentZobristValue ^= boardZobristValue[role - 1][x][y];
+	updateScore(Position(x, y));
+    ppm.AddPossiblePositions(board, Position(x, y));
+}
+
 
 int evaluatePattern(const string &line)
 {
@@ -571,6 +642,7 @@ void nextMove(int player, int &new_x, int &new_y)
 
 int main()
 {
+    init();
     int x, y, n;
     // 恢复目前的棋盘信息
     cin >> n;
@@ -578,10 +650,14 @@ int main()
     {
         cin >> x >> y;
         if (x != -1)
-            board[x][y] = -1; // 对方
+        {
+            updataSituation(x, y, -1);
+        }
         cin >> x >> y;
         if (x != -1)
-            board[x][y] = 1; // 我方
+        {
+            updataSituation(x, y, 1);
+        }
     }
     cin >> x >> y;
     if (x != -1)
@@ -603,14 +679,18 @@ int main()
         }
         else
         {
-            new_x = x + 1;
-            new_y = y + 1;
+            // 执行最优的下一步
+            Position p = nextStep(x, y);
+            new_x = p.x;
+            new_y = p.y;
         }
     }
     else
     {
         // 执行最优的下一步
-        nextMove(1, new_x, new_y);
+        Position p = nextStep(x, y);
+        new_x = p.x;
+        new_y = p.y;
     }
     /***********在上方填充你的代码，决策结果（本方将落子的位置）存入new_x和new_y中****************/
     /************************************************************************************/
