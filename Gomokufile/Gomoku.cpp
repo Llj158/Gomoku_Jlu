@@ -20,7 +20,7 @@ const int DEPTH = 7;
 const int POINT_NUM = 9;
 const int SIZE = 15;
 
-enum Role { HUMAN = -1, COMPUTOR = 1, EMPTY = 0 };
+enum Role { HUMAN = 1, COMPUTOR = 2, EMPTY = 0 };
 
 //位置结构体，行是x，列是y
 struct Position {
@@ -1042,17 +1042,17 @@ int main()
         cin >> x >> y;
         if (x != -1)
         {
-            updataSituation(x, y, -1);
+            updataSituation(x, y, 1);
         }
         cin >> x >> y;
         if (x != -1)
         {
-            updataSituation(x, y, 1);
+            updataSituation(x, y, 2);
         }
     }
     cin >> x >> y;
     if (x != -1)
-        board[x][y] = -1; // 对方
+        board[x][y] = 1; // 对方
 
     // 此时board[][]里存储的就是当前棋盘的所有棋子信息,x和y存的是对方最近一步下的棋
 
