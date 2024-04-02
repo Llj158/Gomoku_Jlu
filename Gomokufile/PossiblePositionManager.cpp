@@ -3,11 +3,9 @@
 
 #include <cassert>
 
-
-bool IsInBoard(int x, int y) {
-    if (x >= 0 && x < 15 && y >= 0 && y < 15)
-        return true;
-    return false;
+bool isValidPosition(const Position &pos)
+{
+    return pos.x >= 0 && pos.x < SIZE && pos.y >= 0 && pos.y < SIZE;
 }
 
 PossiblePositionManager::PossiblePositionManager()
@@ -22,68 +20,63 @@ PossiblePositionManager::PossiblePositionManager()
     directions.push_back(pair<int, int>(0, -1));
 }
 
-
 PossiblePositionManager::~PossiblePositionManager()
 {
 }
 
-void  PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE],const Position& p) {
-    unsigned int i;
-    set<Position> addedPositions;
+void PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const Position &p)
+{
 
-    for (i = 0; i < directions.size(); i++) {
-        //判断范围
-        if (!IsInBoard(p.x + directions[i].first, p.y + directions[i].second))
-            continue;
+    set<Position> newPositions;
+    for (const auto& direct : directions)
+    {
+		Position newPos(p.x + direct.first, p.y + direct.second);
+        if (isValidPosition(newPos) && board[newPos.x][newPos.y] == EMPTY)
+        {
+			auto insertResult = currentPossiblePositions.insert(newPos);
 
-        if (board[p.x + directions[i].first][p.y + directions[i].second] == EMPTY) {
-            Position pos(p.x + directions[i].first, p.y + directions[i].second);
-            pair<set<Position>::iterator, bool> insertResult = currentPossiblePositions.insert(pos);
+			// 如果插入成功
+			if (insertResult.second)
+                newPositions.insert(newPos);
+		}
+	}
+    
+    
 
-            //如果插入成功
-            if(insertResult.second)
-                addedPositions.insert(pos);
-        }
-    }
+    PosHistory ph;//新增历史记录
+    ph.newPositions = newPositions;
 
-    HistoryItem hi;
-    hi.addedPositions = addedPositions;
-
-    if (currentPossiblePositions.find(p) != currentPossiblePositions.end()) {
+    if (currentPossiblePositions.find(p) != currentPossiblePositions.end())//当前选中位置原本为可选位置，现选择后不可能选择，删除
+    {
         currentPossiblePositions.erase(p);
-        hi.removedPosition = p;
+        ph.removedPosition = p;
     }
-    else {
-        hi.removedPosition.x = -1;
-    }
+    else
+        ph.removedPosition.x = -1;//给回溯提供标志
 
-    history.push_back(hi);
+    allHistory.push_back(ph);//保存历史记录
 }
 
-void PossiblePositionManager::Rollback() {
+void PossiblePositionManager::Rollback()
+{
     if (currentPossiblePositions.empty())
         return;
 
-    HistoryItem hi = history[history.size() - 1];
-    history.pop_back();
+    PosHistory hi = allHistory.back();
+    allHistory.pop_back();
 
-    set<Position>::iterator iter;
+    //回溯
 
-    //清除掉前一步加入的点
-    for (iter = hi.addedPositions.begin(); iter != hi.addedPositions.end(); iter++) {
-        currentPossiblePositions.erase(*iter);
-    }
+    // 清除掉前一步加入的点
+    for (auto &pos : hi.newPositions)
+        currentPossiblePositions.erase(pos);
 
-    //加入前一步删除的点
-    if(hi.removedPosition.x != -1)
+    // 加回前一步删除的点
+    if (hi.removedPosition.x != -1)
         currentPossiblePositions.insert(hi.removedPosition);
 }
 
-const set<Position>& PossiblePositionManager::GetCurrentPossiblePositions() {
-    return currentPossiblePositions;
-}
-
-void PossiblePositionManager::RemoveAll() {
-    currentPossiblePositions.clear();
-    history.clear();
+const set<Position> &PossiblePositionManager::GetCurrentPossiblePositions()
+{
+	return currentPossiblePositions;
 }

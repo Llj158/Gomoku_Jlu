@@ -15,14 +15,14 @@ using namespace std;
 
 #define UNKNOWN_SCORE (10000001)
 #define HASH_ITEM_INDEX_MASK (0xffff)
-#define MAX_SCORE (10000000)
-#define MIN_SCORE (-10000000)
+#define MAX_SCORE 10000000  
+#define MIN_SCORE -10000000
 const int PLAYER = 1;
-const int DEPTH = 7;
+const int DEPTH = 6;
 const int POINT_NUM = 9;
 const int SIZE = 15;
 
-enum Role { HUMAN = -1, COMPUTOR = 1, EMPTY = 0 };
+enum Role { HUMAN = 1, COMPUTOR = 2, EMPTY = 0 };
 
 //位置结构体，行是x，列是y
 struct Position {

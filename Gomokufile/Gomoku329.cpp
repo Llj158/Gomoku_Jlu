@@ -2,6 +2,7 @@
 #include "head.h"
 #include "PossiblePositionManager.h"
 #include "ACSearcher.h"
+#include "ZobristHash.h"
 
 using namespace std;
 
@@ -17,8 +18,8 @@ int scores[2][72];  //保存棋局分数（2个角色72行，包括横竖撇捺�
 int allScore[2];    //局面总评分（2个角色）
 
 ACSearcher acs;
-
 PossiblePositionManager ppm;
+ZobristHash zh;
 
 
 vector<Pattern> patterns = {
@@ -48,10 +49,8 @@ void recordHashItem(int depth, int score, HashItem::Flag flag)
     int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
     HashItem *phashItem = &hashItems[index];
 
-    if (phashItem->flag != HashItem::EMPTY && phashItem->depth > depth)
-    { // 如果当前条目已经有数据，且深度比当前深度大，直接返回
+    if (phashItem->flag != HashItem::EMPTY && phashItem->depth > depth) // 如果当前条目已经有数据，且深度小于当前深度，则不覆盖
         return;
-    }
 
     phashItem->checksum = currentZobristValue;
     phashItem->score = score;
@@ -651,17 +650,17 @@ int main()
         cin >> x >> y;
         if (x != -1)
         {
-            updataSituation(x, y, -1);
+            updataSituation(x, y, 1);
         }
         cin >> x >> y;
         if (x != -1)
         {
-            updataSituation(x, y, 1);
+            updataSituation(x, y, 2);
         }
     }
     cin >> x >> y;
     if (x != -1)
-        board[x][y] = -1; // 对方
+        board[x][y] = 1; // 对方
 
     // 此时board[][]里存储的就是当前棋盘的所有棋子信息,x和y存的是对方最近一步下的棋
 

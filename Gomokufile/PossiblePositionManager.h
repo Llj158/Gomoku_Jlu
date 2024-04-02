@@ -7,8 +7,8 @@
 using namespace std;
 
 
-struct HistoryItem {
-    set<Position> addedPositions;
+struct PosHistory {
+    set<Position> newPositions;
     Position removedPosition;
 };
 
@@ -20,13 +20,12 @@ public:
     void AddPossiblePositions(int board[SIZE][SIZE],const Position& p);
     void Rollback();
     const set<Position>& GetCurrentPossiblePositions();
-    void RemoveAll();
-    void SetEvaluateFunc(int(*evaluateFunc)(Position p));
+    //void SetEvaluateFunc(int(*evaluateFunc)(Position p));
 private:
     set<Position> currentPossiblePositions;
-    vector<HistoryItem> history;
+    vector<PosHistory> allHistory;
     vector<pair<int, int> > directions;
-    int (*evaluateFunc)(Position p);
+    // int (*evaluateFunc)(Position p);
 };
 
 
