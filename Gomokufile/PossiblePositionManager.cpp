@@ -1,3 +1,4 @@
+/*管理搜索范围，每选中一点落子，该点周围格子变为可选中状态*/
 
 #include "PossiblePositionManager.h"
 

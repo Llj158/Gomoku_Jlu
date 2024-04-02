@@ -10,15 +10,13 @@ using namespace std;
 /*------------------------全局变量-------------------------*/
 
 int board[15][15] = { 0 };
-long long boardZobristValue[2][SIZE][SIZE];
-long long currentZobristValue; // 当前局面的zobrist值
-HashItem hashItems[HASH_ITEM_INDEX_MASK + 1];
+
 
 int scores[2][72];  //保存棋局分数（2个角色72行，包括横竖撇捺）
 int allScore[2];    //局面总评分（2个角色）
 
 ACSearcher acs;
-PossiblePositionManager ppm;
+PossiblePositionManager pp_manager;
 ZobristHash zh;
 
 
@@ -44,77 +42,7 @@ vector<Pattern> patterns = {
 /*------------------------全局变量-------------------------*/
 
 
-void recordHashItem(int depth, int score, HashItem::Flag flag)
-{
-    int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
-    HashItem *phashItem = &hashItems[index];
 
-    if (phashItem->flag != HashItem::EMPTY && phashItem->depth > depth) // 如果当前条目已经有数据，且深度小于当前深度，则不覆盖
-        return;
-
-    phashItem->checksum = currentZobristValue;
-    phashItem->score = score;
-    phashItem->flag = flag;
-    phashItem->depth = depth;
-}
-
-// 在哈希表中取得计算好的局面的分数
-int getHashItemScore(int depth, int alpha, int beta)
-{
-    int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
-    HashItem *phashItem = &hashItems[index];
-
-    if (phashItem->flag == HashItem::EMPTY)
-        return UNKNOWN_SCORE;
-
-    if (phashItem->checksum == currentZobristValue) // 校验和相同,如不相同则说明这个局面的数据已经被覆盖了
-    {
-        if (phashItem->depth >= depth)
-        {
-            if (phashItem->flag == HashItem::EXACT)
-            {
-                return phashItem->score;
-            }
-            if (phashItem->flag == HashItem::ALPHA && phashItem->score <= alpha)
-            {
-                return alpha;
-            }
-            if (phashItem->flag == HashItem::BETA && phashItem->score >= beta)
-            {
-                return beta;
-            }
-        }
-    }
-
-    return UNKNOWN_SCORE;
-}
-
-// 生成64位随机数
-long long random64()
-{
-    return (long long)rand() | ((long long)rand() << 15) | ((long long)rand() << 30) | ((long long)rand() << 45) | ((long long)rand() << 60);
-}
-// 生成zobrist键值
-void randomBoardZobristValue()
-{
-    int i, j, k;
-    for (i = 0; i < 2; i++)
-    {
-        for (j = 0; j < SIZE; j++)
-        {
-            for (k = 0; k < SIZE; k++)
-            {
-                boardZobristValue[i][j][k] = random64();
-            }
-        }
-    }
-}
-
-// 初始化初始局面的zobrist值
-void initCurrentZobristValue()
-{
-    currentZobristValue = random64();
-}
 
 // 存储搜索结果，即下一步棋子的位置
 Position searchResult;
@@ -346,7 +274,7 @@ int evaluateSituation(Role role)
 int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
 {
     HashItem::Flag flag = HashItem::ALPHA;
-    int score = getHashItemScore(depth, alpha, beta);
+    int score = zh.getHashItemScore(depth, alpha, beta);
     if (score != UNKNOWN_SCORE && depth != DEPTH)
     {
         return score;
@@ -366,53 +294,55 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
 
     if (depth == 0)
     {
-        recordHashItem(depth, score1 - score2, HashItem::EXACT);
+        zh.recordHashItem(depth, score1 - score2, HashItem::EXACT);
         return score1 - score2;
     }
 
     // set<Position> possiblePossitions = createPossiblePosition(board);
 
     int count = 0;
-    set<Position> possiblePositions;                                               // 存储可能出现的位置
-    const set<Position> &tmpPossiblePositions = ppm.GetCurrentPossiblePositions(); // 当前可能出现的位置
+    //set<Position> possiblePositions;                                               // 存储可能出现的位置
+    priority_queue<Position, vector<Position>, compare> possiblePositions; // 存储可能出现的位置
+
+    const set<Position> &tmpPossiblePositions = pp_manager.GetCurrentPossiblePositions(); // 当前可能出现的位置
 
     // 对当前可能出现的位置进行粗略评分
     set<Position>::iterator iter;
     for (iter = tmpPossiblePositions.begin(); iter != tmpPossiblePositions.end(); iter++)
     {
-        possiblePositions.insert(Position(iter->x, iter->y, evaluatePoint(*iter)));
+        possiblePositions.push(Position(iter->x, iter->y, evaluatePoint(*iter)));
     }
 
     // 对可能出现的位置进行评分排序
     while (!possiblePositions.empty())
     {
-        Position p = *possiblePositions.begin();
+        Position p = possiblePositions.top();
 
-        possiblePositions.erase(possiblePositions.begin());
+        possiblePositions.pop();
 
         // 放置棋子
         board[p.x][p.y] = currentSearchRole;
-        currentZobristValue ^= boardZobristValue[currentSearchRole - 1][p.x][p.y];
+        zh.currentZobristValue ^= zh.boardZobristValue[currentSearchRole - 1][p.x][p.y];
         updateScore(p);
 
         // 增加可能出现的位置
         p.score = 0;
-        ppm.AddPossiblePositions(board, p);
+        pp_manager.AddPossiblePositions(board, p);
 
         int val = -abSearch(depth - 1, -beta, -alpha, currentSearchRole == HUMAN ? COMPUTOR : HUMAN);
 
 
         // 取消上一次增加的可能出现的位置
-        ppm.Rollback();
+        pp_manager.Rollback();
 
         // 取消放置
         board[p.x][p.y] = 0;
-        currentZobristValue ^= boardZobristValue[currentSearchRole - 1][p.x][p.y];
+        zh.currentZobristValue ^= zh.boardZobristValue[currentSearchRole - 1][p.x][p.y];
         updateScore(p);
 
         if (val >= beta) // 当val >= beta时，当前节点不会被选择，所以直接返回beta
         {
-            recordHashItem(depth, beta, HashItem::BETA);
+            zh.recordHashItem(depth, beta, HashItem::BETA);
             return beta;
         }
         if (val > alpha)
@@ -432,7 +362,7 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
         }
     }
 
-    recordHashItem(depth, alpha, flag);
+    zh.recordHashItem(depth, alpha, flag);
     return alpha;
 }
 
@@ -465,8 +395,6 @@ void init()
     acs.BuildGotoTable();
     acs.BuildFailTable();
 
-    randomBoardZobristValue();
-    currentZobristValue = random64();
 }
 
 
@@ -475,29 +403,29 @@ Position nextStep(int x, int y) {
 
 
     board[x][y] = HUMAN;
-    currentZobristValue ^= boardZobristValue[HUMAN - 1][x][y];
+    zh.currentZobristValue ^= zh.boardZobristValue[HUMAN - 1][x][y];
     updateScore(Position(x, y));
 
     //增加可能出现的位置
-    ppm.AddPossiblePositions(board, Position(x, y));
+    pp_manager.AddPossiblePositions(board, Position(x, y));
 
     Position result = getAGoodMove();
 
     board[result.x][result.y] = COMPUTOR;
-    currentZobristValue ^= boardZobristValue[COMPUTOR - 1][result.x][result.y];
+    zh.currentZobristValue ^= zh.boardZobristValue[COMPUTOR - 1][result.x][result.y];
     updateScore(result);
 
     //增加可能出现的位置
-    ppm.AddPossiblePositions(board, result);
+    pp_manager.AddPossiblePositions(board, result);
 
     return result;
 }
 void updataSituation(int x, int y, int role)
 {
 	board[x][y] = role;
-	currentZobristValue ^= boardZobristValue[role - 1][x][y];
-	updateScore(Position(x, y));
-    ppm.AddPossiblePositions(board, Position(x, y));
+    zh.currentZobristValue ^= zh.boardZobristValue[role - 1][x][y];
+    updateScore(Position(x, y));
+    pp_manager.AddPossiblePositions(board, Position(x, y));
 }
 
 

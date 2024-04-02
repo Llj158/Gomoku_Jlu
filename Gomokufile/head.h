@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <queue>
 #include <stdlib.h>
 #include <malloc.h>
 #include <memory.h>
@@ -24,8 +25,9 @@ const int SIZE = 15;
 
 enum Role { HUMAN = 1, COMPUTOR = 2, EMPTY = 0 };
 
-//位置结构体，行是x，列是y
-struct Position {
+
+class Position {
+public:
     int x;
     int y;
     int score;
@@ -51,6 +53,20 @@ struct Position {
             return y < pos.y;
         }
     }
+};
+
+struct compare {
+    bool operator()(const Position& a, const Position& b) {
+        if (a.score != b.score) {
+			return a.score < b.score;
+		}
+        if (a.x != b.x) {
+			return a.x > b.x;
+		}
+        else {
+			return a.y > b.y;
+		}
+	}
 };
 
 // 保存棋局的哈希表条目

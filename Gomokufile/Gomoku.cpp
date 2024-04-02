@@ -10,439 +10,134 @@
 
 using namespace std;
 
+/*---------------------------head-----------------------------*/
 
 #define UNKNOWN_SCORE (10000001)
 #define HASH_ITEM_INDEX_MASK (0xffff)
-#define MAX_SCORE (10000000)
-#define MIN_SCORE (-10000000)
+#define MAX_SCORE 10000000
+#define MIN_SCORE -10000000
 const int PLAYER = 1;
-const int DEPTH = 7;
+const int DEPTH = 6;
 const int POINT_NUM = 9;
 const int SIZE = 15;
 
-enum Role { HUMAN = 1, COMPUTOR = 2, EMPTY = 0 };
+enum Role
+{
+    HUMAN = 1,
+    COMPUTOR = 2,
+    EMPTY = 0
+};
 
-//Î»ÖÃ½á¹¹Ìå£¬ĞĞÊÇx£¬ÁĞÊÇy
-struct Position {
+class Position
+{
+public:
     int x;
     int y;
     int score;
     Position() {}
-    Position(int x, int y) {
+    Position(int x, int y)
+    {
         this->x = x;
         this->y = y;
         score = 0;
     }
-    Position(int x, int y, int score) {
+    Position(int x, int y, int score)
+    {
         this->x = x;
         this->y = y;
         this->score = score;
     }
-    bool operator <(const Position &pos) const {
-        if (score != pos.score) {
+    bool operator<(const Position &pos) const
+    {
+        if (score != pos.score)
+        {
             return score > pos.score;
         }
-        if (x != pos.x) {
+        if (x != pos.x)
+        {
             return x < pos.x;
         }
-        else {
+        else
+        {
             return y < pos.y;
         }
     }
 };
 
-// ±£´æÆå¾ÖµÄ¹şÏ£±íÌõÄ¿
-struct HashItem
+struct compare
 {
-  long long checksum; // Ğ£ÑéºÍ
-  int depth;          // ËÑË÷Éî¶È
-  int score;          // ·ÖÊı
-  enum Flag
-  {
-    ALPHA = 0,
-    BETA = 1,
-    EXACT = 2,
-    EMPTY = 3
-  } flag; // ALPHA¼ôÖ¦£¬BETA¼ôÖ¦£¬È·ÇĞÖµ£¬¿Õ
+    bool operator()(const Position &a, const Position &b)
+    {
+        if (a.score != b.score)
+        {
+            return a.score < b.score;
+        }
+        if (a.x != b.x)
+        {
+            return a.x > b.x;
+        }
+        else
+        {
+            return a.y > b.y;
+        }
+    }
 };
 
-
+// ä¿å­˜æ£‹å±€çš„å“ˆå¸Œè¡¨æ¡ç›®
+struct HashItem
+{
+    long long checksum; // æ ¡éªŒå’Œ
+    int depth;          // æœç´¢æ·±åº¦
+    int score;          // åˆ†æ•°
+    enum Flag
+    {
+        ALPHA = 0,
+        BETA = 1,
+        EXACT = 2,
+        EMPTY = 3
+    } flag; // ALPHAå‰ªæï¼ŒBETAå‰ªæï¼Œç¡®åˆ‡å€¼ï¼Œç©º
+};
 
 struct Pattern
 {
-  string pattern;
-  int score;
+    string pattern;
+    int score;
 };
 
+/*---------------------------head-----------------------------*/
 
+/*---------------------------ZobristHash-----------------------------*/
 
-
-#include <string>
-#include <vector>
-#include <map>
-using namespace std;
-
-//trieÊ÷½Úµã
-struct ACNode {
-    ACNode(int p, char c)
-        :parent(p),
-        ch(c),
-        fail(-1)
-    {
-    }
-
-    char ch;
-    map<char, int> sons;
-    int fail;
-    vector<int> output;
-    int parent;
-};
-
-//ACËã·¨Àà
-class ACSearcher
+class ZobristHash
 {
 public:
-    ACSearcher();
-    ~ACSearcher();
+    ZobristHash();
+    ~ZobristHash(){};
+    void recordHashItem(int depth, int score, HashItem::Flag flag);
+    int getHashItemScore(int depth, int alpha, int beta);
+    long long random64();
+    void randomZobristValue();
+    void initCurrentZobristValue();
 
-    void LoadPattern(const vector<string>& paterns);
-    void BuildGotoTable();
-    void BuildFailTable();
-    vector<int> ACSearch(const string& text);           //·µ»ØÆ¥Åäµ½µÄÄ£Ê½µÄË÷Òı
-
+    long long boardZobristValue[2][SIZE][SIZE];
+    long long currentZobristValue; // å½“å‰å±€é¢çš„zobristå€¼
 private:
-    int maxState;                                       //×î´ó×´Ì¬Êı
-    vector<ACNode> nodes;                               //trieÊ÷
-    vector<string> paterns;                             //ĞèÒªÆ¥ÅäµÄÄ£Ê½
-
-    void AddState(int parent, char ch);                                    //³õÊ¼»¯ĞÂ×´Ì¬
+    HashItem hashItems[HASH_ITEM_INDEX_MASK + 1];
 };
 
-
-#include <set>
-#include <vector>
-
-using namespace std;
-
-
-struct HistoryItem {
-    set<Position> addedPositions;
-    Position removedPosition;
-};
-
-class PossiblePositionManager
+ZobristHash::ZobristHash()
 {
-public:
-    PossiblePositionManager();
-    ~PossiblePositionManager();
-    void AddPossiblePositions(int board[SIZE][SIZE], const Position& p);
-    void Rollback();
-    const set<Position>& GetCurrentPossiblePositions();
-    void RemoveAll();
-    void SetEvaluateFunc(int(*evaluateFunc)(Position p));
-private:
-    set<Position> currentPossiblePositions;
-    vector<HistoryItem> history;
-    vector<pair<int, int> > directions;
-    int (*evaluateFunc)(Position p);
-};
-
-
-
-
-#include <cassert>
-
-
-ACSearcher::ACSearcher()
-    :maxState(0)
-{
-    //³õÊ¼»¯¸ù½Úµã
-    AddState(-1, 'a');
-    nodes[0].fail = -1;
-
+    randomZobristValue();
+    initCurrentZobristValue();
 }
 
-
-ACSearcher::~ACSearcher()
-{
-}
-
-
-void ACSearcher::LoadPattern(const vector<string>& paterns) {
-    this->paterns = paterns;
-}
-
-void ACSearcher::BuildGotoTable() {
-    assert(nodes.size());
-
-    unsigned int i, j;
-    for (i = 0; i < paterns.size(); i++) {
-        //´Ó¸ù½Úµã¿ªÊ¼
-        int currentIndex = 0;
-        for (j = 0; j < paterns[i].size(); j++) {
-            if (nodes[currentIndex].sons.find(paterns[i][j]) == nodes[currentIndex].sons.end()) {
-                nodes[currentIndex].sons[paterns[i][j]] = ++maxState;
-
-                //Éú³ÉĞÂ½Úµã
-                AddState(currentIndex, paterns[i][j]);
-                currentIndex = maxState;
-            }
-            else {
-                currentIndex = nodes[currentIndex].sons[paterns[i][j]];
-            }
-        }
-
-        nodes[currentIndex].output.push_back(i);
-    }
-}
-
-void ACSearcher::BuildFailTable() {
-    assert(nodes.size());
-
-    //ÖĞ¼ä½ÚµãÊÕ¼¯Æ÷
-    vector<int> midNodesIndex;
-
-    //¸øµÚÒ»²ãµÄ½ÚµãÉèÖÃfailÎª0£¬²¢°ÑµÚ¶ş²ã½Úµã¼ÓÈëµ½midStateÀï
-    ACNode root = nodes[0];
-
-    map<char, int>::iterator iter1, iter2;
-    for (iter1 = root.sons.begin(); iter1 != root.sons.end(); iter1++) {
-        nodes[iter1->second].fail = 0;
-        ACNode& currentNode = nodes[iter1->second];
-
-        //ÊÕ¼¯µÚÈı²ã½Úµã
-        for (iter2 = currentNode.sons.begin(); iter2 != currentNode.sons.end(); iter2++) {
-            midNodesIndex.push_back(iter2->second);
-        }
-    }
-
-    //¹ã¶ÈÓÅÏÈ±éÀú
-    while (midNodesIndex.size()) {
-        vector<int> newMidNodesIndex;
-
-        unsigned int i;
-        for (i = 0; i < midNodesIndex.size(); i++) {
-            ACNode& currentNode = nodes[midNodesIndex[i]];
-
-            //ÒÔÏÂÑ­»·ÎªÑ°ÕÒµ±Ç°½ÚµãµÄfailÖµ
-            int currentFail = nodes[currentNode.parent].fail;
-            while (true) {
-                ACNode& currentFailNode = nodes[currentFail];
-
-                if (currentFailNode.sons.find(currentNode.ch) != currentFailNode.sons.end()) {
-                    //³É¹¦ÕÒµ½¸Ã½ÚµãµÄfailÖµ
-                    currentNode.fail = currentFailNode.sons.find(currentNode.ch)->second;
-
-                    //ºó×º°üº¬
-                    if (nodes[currentNode.fail].output.size()) {
-                        currentNode.output.insert(currentNode.output.end(), nodes[currentNode.fail].output.begin(), nodes[currentNode.fail].output.end());
-                    }
-
-                    break;
-                }
-                else {
-                    currentFail = currentFailNode.fail;
-                }
-
-                //Èç¹ûÊÇ¸ù½Úµã
-                if (currentFail == -1) {
-                    currentNode.fail = 0;
-                    break;
-                }
-            }
-
-            //ÊÕ¼¯ÏÂÒ»²ã½Úµã
-            for (iter1 = currentNode.sons.begin(); iter1 != currentNode.sons.end(); iter1++) {
-                //ÊÕ¼¯ÏÂÒ»²ã½Úµã
-                newMidNodesIndex.push_back(iter1->second);
-            }
-        }
-        midNodesIndex = newMidNodesIndex;
-    }
-}
-
-vector<int> ACSearcher::ACSearch(const string& text) {
-    vector<int> result;
-
-    //³õÊ¼»¯Îª¸ù½Úµã
-    int currentIndex = 0;
-
-    unsigned int i;
-    map<char, int>::iterator tmpIter;
-    for (i = 0; i < text.size();) {
-        //Ë³×ÅtrieÊ÷²éÕÒ
-        if ((tmpIter = nodes[currentIndex].sons.find(text[i])) != nodes[currentIndex].sons.end()) {
-            currentIndex = tmpIter->second;
-            i++;
-        }
-        else {
-            //Ê§ÅäµÄÇé¿ö
-            while (nodes[currentIndex].fail != -1 && nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end()) {
-                currentIndex = nodes[currentIndex].fail;
-            }
-
-            //Èç¹ûÃ»ÓĞ³É¹¦ÕÒµ½ºÏÊÊµÄfail
-            if (nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end()) {
-                i++;
-            }
-        }
-
-        if (nodes[currentIndex].output.size()) {
-            result.insert(result.end(), nodes[currentIndex].output.begin(), nodes[currentIndex].output.end());
-        }
-
-    }
-
-    return result;
-}
-
-void ACSearcher::AddState(int parent, char ch) {
-    nodes.push_back(ACNode(parent, ch));
-    assert(nodes.size() - 1 == maxState);
-}
-
-
-
-#include <cassert>
-
-
-bool IsInBoard(int x, int y) {
-    if (x >= 0 && x < 15 && y >= 0 && y < 15)
-        return true;
-    return false;
-}
-
-PossiblePositionManager::PossiblePositionManager()
-{
-    directions.push_back(pair<int, int>(1, 1));
-    directions.push_back(pair<int, int>(1, -1));
-    directions.push_back(pair<int, int>(-1, 1));
-    directions.push_back(pair<int, int>(-1, -1));
-    directions.push_back(pair<int, int>(1, 0));
-    directions.push_back(pair<int, int>(0, 1));
-    directions.push_back(pair<int, int>(-1, 0));
-    directions.push_back(pair<int, int>(0, -1));
-}
-
-
-PossiblePositionManager::~PossiblePositionManager()
-{
-}
-
-void  PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const Position& p) {
-    unsigned int i;
-    set<Position> addedPositions;
-
-    for (i = 0; i < directions.size(); i++) {
-        //ÅĞ¶Ï·¶Î§
-        if (!IsInBoard(p.x + directions[i].first, p.y + directions[i].second))
-            continue;
-
-        if (board[p.x + directions[i].first][p.y + directions[i].second] == EMPTY) {
-            Position pos(p.x + directions[i].first, p.y + directions[i].second);
-            pair<set<Position>::iterator, bool> insertResult = currentPossiblePositions.insert(pos);
-
-            //Èç¹û²åÈë³É¹¦
-            if (insertResult.second)
-                addedPositions.insert(pos);
-        }
-    }
-
-    HistoryItem hi;
-    hi.addedPositions = addedPositions;
-
-    if (currentPossiblePositions.find(p) != currentPossiblePositions.end()) {
-        currentPossiblePositions.erase(p);
-        hi.removedPosition = p;
-    }
-    else {
-        hi.removedPosition.x = -1;
-    }
-
-    history.push_back(hi);
-}
-
-void PossiblePositionManager::Rollback() {
-    if (currentPossiblePositions.empty())
-        return;
-
-    HistoryItem hi = history[history.size() - 1];
-    history.pop_back();
-
-    set<Position>::iterator iter;
-
-    //Çå³ıµôÇ°Ò»²½¼ÓÈëµÄµã
-    for (iter = hi.addedPositions.begin(); iter != hi.addedPositions.end(); iter++) {
-        currentPossiblePositions.erase(*iter);
-    }
-
-    //¼ÓÈëÇ°Ò»²½É¾³ıµÄµã
-    if (hi.removedPosition.x != -1)
-        currentPossiblePositions.insert(hi.removedPosition);
-}
-
-const set<Position>& PossiblePositionManager::GetCurrentPossiblePositions() {
-    return currentPossiblePositions;
-}
-
-void PossiblePositionManager::RemoveAll() {
-    currentPossiblePositions.clear();
-    history.clear();
-}
-
-
-
-#include <iostream>
-
-using namespace std;
-
-
-/*------------------------È«¾Ö±äÁ¿-------------------------*/
-
-int board[15][15] = { 0 };
-long long boardZobristValue[2][SIZE][SIZE];
-long long currentZobristValue; // µ±Ç°¾ÖÃæµÄzobristÖµ
-HashItem hashItems[HASH_ITEM_INDEX_MASK + 1];
-
-int scores[2][72];  //±£´æÆå¾Ö·ÖÊı£¨2¸ö½ÇÉ«72ĞĞ£¬°üÀ¨ºáÊúÆ²Şà£©
-int allScore[2];    //¾ÖÃæ×ÜÆÀ·Ö£¨2¸ö½ÇÉ«£©
-
-ACSearcher acs;
-
-PossiblePositionManager ppm;
-
-
-vector<Pattern> patterns = {
-    {"11111", 50000},
-    {"011110", 4320},
-    {"011100", 720},
-    {"001110", 720},
-    {"011010", 720},
-    {"010110", 720},
-    {"11110", 720},
-    {"01111", 720},
-    {"11011", 720},
-    {"10111", 720},
-    {"11101", 720},
-    {"001100", 120},
-    {"001010", 120},
-    {"010100", 120},
-    {"000100", 20},
-    {"001000", 20},
-};
-
-/*------------------------È«¾Ö±äÁ¿-------------------------*/
-
-
-void recordHashItem(int depth, int score, HashItem::Flag flag)
+void ZobristHash::recordHashItem(int depth, int score, HashItem::Flag flag)
 {
     int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
-    HashItem* phashItem = &hashItems[index];
+    HashItem *phashItem = &hashItems[index];
 
-    if (phashItem->flag != HashItem::EMPTY && phashItem->depth > depth)
-    { // Èç¹ûµ±Ç°ÌõÄ¿ÒÑ¾­ÓĞÊı¾İ£¬ÇÒÉî¶È±Èµ±Ç°Éî¶È´ó£¬Ö±½Ó·µ»Ø
+    if (phashItem->flag != HashItem::EMPTY && phashItem->depth > depth) // å¦‚æœå½“å‰æ¡ç›®å·²ç»æœ‰æ•°æ®ï¼Œä¸”æ·±åº¦å°äºå½“å‰æ·±åº¦ï¼Œåˆ™ä¸è¦†ç›–
         return;
-    }
 
     phashItem->checksum = currentZobristValue;
     phashItem->score = score;
@@ -450,16 +145,16 @@ void recordHashItem(int depth, int score, HashItem::Flag flag)
     phashItem->depth = depth;
 }
 
-// ÔÚ¹şÏ£±íÖĞÈ¡µÃ¼ÆËãºÃµÄ¾ÖÃæµÄ·ÖÊı
-int getHashItemScore(int depth, int alpha, int beta)
+// åœ¨å“ˆå¸Œè¡¨ä¸­å–å¾—è®¡ç®—å¥½çš„å±€é¢çš„åˆ†æ•°
+int ZobristHash::getHashItemScore(int depth, int alpha, int beta)
 {
     int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
-    HashItem* phashItem = &hashItems[index];
+    HashItem *phashItem = &hashItems[index];
 
     if (phashItem->flag == HashItem::EMPTY)
         return UNKNOWN_SCORE;
 
-    if (phashItem->checksum == currentZobristValue) // Ğ£ÑéºÍÏàÍ¬,Èç²»ÏàÍ¬ÔòËµÃ÷Õâ¸ö¾ÖÃæµÄÊı¾İÒÑ¾­±»¸²¸ÇÁË
+    if (phashItem->checksum == currentZobristValue) // æ ¡éªŒå’Œç›¸åŒ,å¦‚ä¸ç›¸åŒåˆ™è¯´æ˜è¿™ä¸ªå±€é¢çš„æ•°æ®å·²ç»è¢«è¦†ç›–äº†
     {
         if (phashItem->depth >= depth)
         {
@@ -481,13 +176,14 @@ int getHashItemScore(int depth, int alpha, int beta)
     return UNKNOWN_SCORE;
 }
 
-// Éú³É64Î»Ëæ»úÊı
-long long random64()
+// ç”Ÿæˆ64ä½éšæœºæ•°
+long long ZobristHash::random64()
 {
     return (long long)rand() | ((long long)rand() << 15) | ((long long)rand() << 30) | ((long long)rand() << 45) | ((long long)rand() << 60);
 }
-// Éú³Ézobrist¼üÖµ
-void randomBoardZobristValue()
+
+// ç”Ÿæˆzobristé”®å€¼
+void ZobristHash::randomZobristValue()
 {
     int i, j, k;
     for (i = 0; i < 2; i++)
@@ -502,23 +198,381 @@ void randomBoardZobristValue()
     }
 }
 
-// ³õÊ¼»¯³õÊ¼¾ÖÃæµÄzobristÖµ
-void initCurrentZobristValue()
+// åˆå§‹åŒ–åˆå§‹å±€é¢çš„zobristå€¼
+void ZobristHash::initCurrentZobristValue()
 {
     currentZobristValue = random64();
 }
 
-// ´æ´¢ËÑË÷½á¹û£¬¼´ÏÂÒ»²½Æå×ÓµÄÎ»ÖÃ
+/*---------------------------ZobristHash-----------------------------*/
+
+/*---------------------------ACSearcher-----------------------------*/
+
+#include <string>
+#include <vector>
+#include <map>
+using namespace std;
+
+//trieæ ‘èŠ‚ç‚¹
+struct ACNode {
+    ACNode(int p, char c)
+        :parent(p),
+        ch(c),
+        fail(-1)
+    {
+    }
+
+    char ch;
+    map<char, int> sons;
+    int fail;
+    vector<int> output;
+    int parent;
+};
+
+//ACç®—æ³•ç±»
+class ACSearcher
+{
+public:
+    ACSearcher();
+    ~ACSearcher();
+
+    void LoadPattern(const vector<string>& paterns);
+    void BuildGotoTable();
+    void BuildFailTable();
+    vector<int> ACSearch(const string& text);           //è¿”å›åŒ¹é…åˆ°çš„æ¨¡å¼çš„ç´¢å¼•
+
+private:
+    int maxState;                                       //æœ€å¤§çŠ¶æ€æ•°
+    vector<ACNode> nodes;                               //trieæ ‘
+    vector<string> paterns;                             //éœ€è¦åŒ¹é…çš„æ¨¡å¼
+
+    void AddState(int parent, char ch);                                    //åˆå§‹åŒ–æ–°çŠ¶æ€
+};
+
+
+
+
+#include <cassert>
+
+
+ACSearcher::ACSearcher()
+    :maxState(0)
+{
+    //åˆå§‹åŒ–æ ¹èŠ‚ç‚¹
+    AddState(-1, 'a');
+    nodes[0].fail = -1;
+
+}
+
+
+ACSearcher::~ACSearcher()
+{
+}
+
+
+void ACSearcher::LoadPattern(const vector<string>& paterns) {
+    this->paterns = paterns;
+}
+
+void ACSearcher::BuildGotoTable() {
+    assert(nodes.size());
+
+    unsigned int i, j;
+    for (i = 0; i < paterns.size(); i++) {
+        //ä»æ ¹èŠ‚ç‚¹å¼€å§‹
+        int currentIndex = 0;
+        for (j = 0; j < paterns[i].size(); j++) {
+            if (nodes[currentIndex].sons.find(paterns[i][j]) == nodes[currentIndex].sons.end()) {
+                nodes[currentIndex].sons[paterns[i][j]] = ++maxState;
+
+                //ç”Ÿæˆæ–°èŠ‚ç‚¹
+                AddState(currentIndex, paterns[i][j]);
+                currentIndex = maxState;
+            }
+            else {
+                currentIndex = nodes[currentIndex].sons[paterns[i][j]];
+            }
+        }
+
+        nodes[currentIndex].output.push_back(i);
+    }
+}
+
+void ACSearcher::BuildFailTable() {
+    assert(nodes.size());
+
+    //ä¸­é—´èŠ‚ç‚¹æ”¶é›†å™¨
+    vector<int> midNodesIndex;
+
+    //ç»™ç¬¬ä¸€å±‚çš„èŠ‚ç‚¹è®¾ç½®failä¸º0ï¼Œå¹¶æŠŠç¬¬äºŒå±‚èŠ‚ç‚¹åŠ å…¥åˆ°midStateé‡Œ
+    ACNode root = nodes[0];
+
+    map<char, int>::iterator iter1, iter2;
+    for (iter1 = root.sons.begin(); iter1 != root.sons.end(); iter1++) {
+        nodes[iter1->second].fail = 0;
+        ACNode& currentNode = nodes[iter1->second];
+
+        //æ”¶é›†ç¬¬ä¸‰å±‚èŠ‚ç‚¹
+        for (iter2 = currentNode.sons.begin(); iter2 != currentNode.sons.end(); iter2++) {
+            midNodesIndex.push_back(iter2->second);
+        }
+    }
+
+    //å¹¿åº¦ä¼˜å…ˆéå†
+    while (midNodesIndex.size()) {
+        vector<int> newMidNodesIndex;
+
+        unsigned int i;
+        for (i = 0; i < midNodesIndex.size(); i++) {
+            ACNode& currentNode = nodes[midNodesIndex[i]];
+
+            //ä»¥ä¸‹å¾ªç¯ä¸ºå¯»æ‰¾å½“å‰èŠ‚ç‚¹çš„failå€¼
+            int currentFail = nodes[currentNode.parent].fail;
+            while (true) {
+                ACNode& currentFailNode = nodes[currentFail];
+
+                if (currentFailNode.sons.find(currentNode.ch) != currentFailNode.sons.end()) {
+                    //æˆåŠŸæ‰¾åˆ°è¯¥èŠ‚ç‚¹çš„failå€¼
+                    currentNode.fail = currentFailNode.sons.find(currentNode.ch)->second;
+
+                    //åç¼€åŒ…å«
+                    if (nodes[currentNode.fail].output.size()) {
+                        currentNode.output.insert(currentNode.output.end(), nodes[currentNode.fail].output.begin(), nodes[currentNode.fail].output.end());
+                    }
+
+                    break;
+                }
+                else {
+                    currentFail = currentFailNode.fail;
+                }
+
+                //å¦‚æœæ˜¯æ ¹èŠ‚ç‚¹
+                if (currentFail == -1) {
+                    currentNode.fail = 0;
+                    break;
+                }
+            }
+
+            //æ”¶é›†ä¸‹ä¸€å±‚èŠ‚ç‚¹
+            for (iter1 = currentNode.sons.begin(); iter1 != currentNode.sons.end(); iter1++) {
+                //æ”¶é›†ä¸‹ä¸€å±‚èŠ‚ç‚¹
+                newMidNodesIndex.push_back(iter1->second);
+            }
+        }
+        midNodesIndex = newMidNodesIndex;
+    }
+}
+
+vector<int> ACSearcher::ACSearch(const string& text) {
+    vector<int> result;
+
+    //åˆå§‹åŒ–ä¸ºæ ¹èŠ‚ç‚¹
+    int currentIndex = 0;
+
+    unsigned int i;
+    map<char, int>::iterator tmpIter;
+    for (i = 0; i < text.size();) {
+        //é¡ºç€trieæ ‘æŸ¥æ‰¾
+        if ((tmpIter = nodes[currentIndex].sons.find(text[i])) != nodes[currentIndex].sons.end()) {
+            currentIndex = tmpIter->second;
+            i++;
+        }
+        else {
+            //å¤±é…çš„æƒ…å†µ
+            while (nodes[currentIndex].fail != -1 && nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end()) {
+                currentIndex = nodes[currentIndex].fail;
+            }
+
+            //å¦‚æœæ²¡æœ‰æˆåŠŸæ‰¾åˆ°åˆé€‚çš„fail
+            if (nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end()) {
+                i++;
+            }
+        }
+
+        if (nodes[currentIndex].output.size()) {
+            result.insert(result.end(), nodes[currentIndex].output.begin(), nodes[currentIndex].output.end());
+        }
+
+    }
+
+    return result;
+}
+
+void ACSearcher::AddState(int parent, char ch) {
+    nodes.push_back(ACNode(parent, ch));
+    assert(nodes.size() - 1 == maxState);
+}
+
+/*---------------------------ACSearcher-----------------------------*/
+
+/*---------------------------PossiblePositionManager-----------------------------*/
+
+#include <cassert>
+
+#include <set>
+#include <vector>
+
+using namespace std;
+
+struct PosHistory
+{
+    set<Position> newPositions;
+    Position removedPosition;
+};
+
+class PossiblePositionManager
+{
+public:
+    PossiblePositionManager();
+    ~PossiblePositionManager();
+    void AddPossiblePositions(int board[SIZE][SIZE], const Position &p);
+    void Rollback();
+    const set<Position> &GetCurrentPossiblePositions();
+
+private:
+    set<Position> currentPossiblePositions;
+    vector<PosHistory> allHistory;
+    vector<pair<int, int>> directions;
+};
+
+bool isValidPosition(const Position &pos)
+{
+    return pos.x >= 0 && pos.x < SIZE && pos.y >= 0 && pos.y < SIZE;
+}
+
+PossiblePositionManager::PossiblePositionManager()
+{
+    directions.push_back(pair<int, int>(1, 1));
+    directions.push_back(pair<int, int>(1, -1));
+    directions.push_back(pair<int, int>(-1, 1));
+    directions.push_back(pair<int, int>(-1, -1));
+    directions.push_back(pair<int, int>(1, 0));
+    directions.push_back(pair<int, int>(0, 1));
+    directions.push_back(pair<int, int>(-1, 0));
+    directions.push_back(pair<int, int>(0, -1));
+}
+
+PossiblePositionManager::~PossiblePositionManager()
+{
+}
+
+void PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const Position &p)
+{
+
+    set<Position> newPositions;
+    for (const auto &direct : directions)
+    {
+        Position newPos(p.x + direct.first, p.y + direct.second);
+        if (isValidPosition(newPos) && board[newPos.x][newPos.y] == EMPTY)
+        {
+            auto insertResult = currentPossiblePositions.insert(newPos);
+
+            // å¦‚æœæ’å…¥æˆåŠŸ
+            if (insertResult.second)
+                newPositions.insert(newPos);
+        }
+    }
+
+    PosHistory ph; // æ–°å¢å†å²è®°å½•
+    ph.newPositions = newPositions;
+
+    if (currentPossiblePositions.find(p) != currentPossiblePositions.end()) // å½“å‰é€‰ä¸­ä½ç½®åŸæœ¬ä¸ºå¯é€‰ä½ç½®ï¼Œç°é€‰æ‹©åä¸å¯èƒ½é€‰æ‹©ï¼Œåˆ é™¤
+    {
+        currentPossiblePositions.erase(p);
+        ph.removedPosition = p;
+    }
+    else
+        ph.removedPosition.x = -1; // ç»™å›æº¯æä¾›æ ‡å¿—
+
+    allHistory.push_back(ph); // ä¿å­˜å†å²è®°å½•
+}
+
+void PossiblePositionManager::Rollback()
+{
+    if (currentPossiblePositions.empty())
+        return;
+
+    PosHistory hi = allHistory.back();
+    allHistory.pop_back();
+
+    // å›æº¯
+
+    // æ¸…é™¤æ‰å‰ä¸€æ­¥åŠ å…¥çš„ç‚¹
+    for (auto &pos : hi.newPositions)
+        currentPossiblePositions.erase(pos);
+
+    // åŠ å›å‰ä¸€æ­¥åˆ é™¤çš„ç‚¹
+    if (hi.removedPosition.x != -1)
+        currentPossiblePositions.insert(hi.removedPosition);
+}
+
+const set<Position> &PossiblePositionManager::GetCurrentPossiblePositions()
+{
+    return currentPossiblePositions;
+}
+
+/*---------------------------PossiblePositionManager-----------------------------*/
+
+
+#include <iostream>
+
+using namespace std;
+
+
+/*------------------------å…¨å±€å˜é‡-------------------------*/
+
+#include <iostream>
+#include <queue>
+
+using namespace std;
+
+/*------------------------å…¨å±€å˜é‡-------------------------*/
+
+int board[15][15] = {0};
+
+int scores[2][72]; // ä¿å­˜æ£‹å±€åˆ†æ•°ï¼ˆ2ä¸ªè§’è‰²72è¡Œï¼ŒåŒ…æ‹¬æ¨ªç«–æ’‡æºï¼‰
+int allScore[2];   // å±€é¢æ€»è¯„åˆ†ï¼ˆ2ä¸ªè§’è‰²ï¼‰
+
+ACSearcher acs;
+PossiblePositionManager pp_manager;
+ZobristHash zh;
+
+vector<Pattern> patterns = {
+    {"11111", 50000},
+    {"011110", 4320},
+    {"011100", 720},
+    {"001110", 720},
+    {"011010", 720},
+    {"010110", 720},
+    {"11110", 720},
+    {"01111", 720},
+    {"11011", 720},
+    {"10111", 720},
+    {"11101", 720},
+    {"001100", 120},
+    {"001010", 120},
+    {"010100", 120},
+    {"000100", 20},
+    {"001000", 20},
+};
+
+// å­˜å‚¨æœç´¢ç»“æœï¼Œå³ä¸‹ä¸€æ­¥æ£‹å­çš„ä½ç½®
 Position searchResult;
 
-// ¸ù¾İÎ»ÖÃÆÀ·Ö£¬ÆäÖĞboardÊÇµ±Ç°ÆåÅÌ£¬pÊÇÎ»ÖÃ£¬roleÊÇÆÀ·Ö½ÇÉ«£¬±ÈÈçroleÊÇHumanÔòÊÇÏà¶ÔÈËÀàÆÀ·Ö£¬±ÈÈçroleÊÇcomputerÔòÊÇ¶ÔÓÚµçÄÔÆÀ·Ö
+/*------------------------å…¨å±€å˜é‡-------------------------*/
+
+
+
+
+
+// æ ¹æ®ä½ç½®è¯„åˆ†ï¼Œå…¶ä¸­boardæ˜¯å½“å‰æ£‹ç›˜ï¼Œpæ˜¯ä½ç½®ï¼Œroleæ˜¯è¯„åˆ†è§’è‰²ï¼Œæ¯”å¦‚roleæ˜¯Humanåˆ™æ˜¯ç›¸å¯¹äººç±»è¯„åˆ†ï¼Œæ¯”å¦‚roleæ˜¯computeråˆ™æ˜¯å¯¹äºç”µè„‘è¯„åˆ†
 int evaluatePoint(Position p)
 {
     int result;
     int i, j;
 
     result = 0;
-    int role = HUMAN; // Á½¸ö½ÇÉ«¶¼ÒªÆÀ·Ö£¬ËùÒÔÕâÀïÏÈÉèÎªHUMAN
+    int role = HUMAN; // ä¸¤ä¸ªè§’è‰²éƒ½è¦è¯„åˆ†ï¼Œæ‰€ä»¥è¿™é‡Œå…ˆè®¾ä¸ºHUMAN
 
     string lines[4];
     string lines1[4];
@@ -527,9 +581,9 @@ int evaluatePoint(Position p)
         if (i != p.x)
         {
             lines[0].push_back(board[i][p.y] == role ? '1' : board[i][p.y] == 0 ? '0'
-                : '2');
+                                                                                : '2');
             lines1[0].push_back(board[i][p.y] == role ? '2' : board[i][p.y] == 0 ? '0'
-                : '1');
+                                                                                 : '1');
         }
         else
         {
@@ -542,9 +596,9 @@ int evaluatePoint(Position p)
         if (i != p.y)
         {
             lines[1].push_back(board[p.x][i] == role ? '1' : board[p.x][i] == 0 ? '0'
-                : '2');
+                                                                                : '2');
             lines1[1].push_back(board[p.x][i] == role ? '2' : board[p.x][i] == 0 ? '0'
-                : '1');
+                                                                                 : '1');
         }
         else
         {
@@ -557,9 +611,9 @@ int evaluatePoint(Position p)
         if (i != p.x)
         {
             lines[2].push_back(board[i][j] == role ? '1' : board[i][j] == 0 ? '0'
-                : '2');
+                                                                            : '2');
             lines1[2].push_back(board[i][j] == role ? '2' : board[i][j] == 0 ? '0'
-                : '1');
+                                                                             : '1');
         }
         else
         {
@@ -572,9 +626,9 @@ int evaluatePoint(Position p)
         if (i != p.x)
         {
             lines[3].push_back(board[i][j] == role ? '1' : board[i][j] == 0 ? '0'
-                : '2');
+                                                                            : '2');
             lines1[3].push_back(board[i][j] == role ? '2' : board[i][j] == 0 ? '0'
-                : '1');
+                                                                             : '1');
         }
         else
         {
@@ -609,47 +663,47 @@ void updateScore(Position p)
     int i, j;
     int role = HUMAN;
 
-    // Êú
+    // ç«–
     for (i = 0; i < SIZE; i++)
     {
 
         lines[0].push_back(board[i][p.y] == role ? '1' : board[i][p.y] == 0 ? '0'
-            : '2');
+                                                                            : '2');
         lines1[0].push_back(board[i][p.y] == role ? '2' : board[i][p.y] == 0 ? '0'
-            : '1');
+                                                                             : '1');
     }
-    // ºá
+    // æ¨ª
     for (i = 0; i < SIZE; i++)
     {
 
         lines[1].push_back(board[p.x][i] == role ? '1' : board[p.x][i] == 0 ? '0'
-            : '2');
+                                                                            : '2');
         lines1[1].push_back(board[p.x][i] == role ? '2' : board[p.x][i] == 0 ? '0'
-            : '1');
+                                                                             : '1');
     }
-    // ·´Ğ±¸Ü
+    // åæ–œæ 
     for (i = p.x - min(p.x, p.y), j = p.y - min(p.x, p.y); i < SIZE && j < SIZE; i++, j++)
     {
 
         lines[2].push_back(board[i][j] == role ? '1' : board[i][j] == 0 ? '0'
-            : '2');
+                                                                        : '2');
         lines1[2].push_back(board[i][j] == role ? '2' : board[i][j] == 0 ? '0'
-            : '1');
+                                                                         : '1');
     }
-    // Ğ±¸Ü
+    // æ–œæ 
     for (i = p.x + min(p.y, SIZE - 1 - p.x), j = p.y - min(p.y, SIZE - 1 - p.x); i >= 0 && j < SIZE; i--, j++)
     {
 
         lines[3].push_back(board[i][j] == role ? '1' : board[i][j] == 0 ? '0'
-            : '2');
+                                                                        : '2');
         lines1[3].push_back(board[i][j] == role ? '2' : board[i][j] == 0 ? '0'
-            : '1');
+                                                                         : '1');
     }
 
-    int lineScore[4] = { 0 };
-    int line1Score[4] = { 0 };
+    int lineScore[4] = {0};
+    int line1Score[4] = {0};
 
-    // ¼ÆËã·ÖÊı
+    // è®¡ç®—åˆ†æ•°
     for (i = 0; i < 4; i++)
     {
         vector<int> result = acs.ACSearch(lines[i]);
@@ -669,27 +723,27 @@ void updateScore(Position p)
     int b = SIZE + p.x;
     int c = 2 * SIZE + (p.y - p.x + 10);
     int d = 2 * SIZE + 21 + (p.x + p.y - 4);
-    // ¼õÈ¥ÒÔÇ°µÄ¼ÇÂ¼
+    // å‡å»ä»¥å‰çš„è®°å½•
     for (i = 0; i < 2; i++)
     {
         allScore[i] -= scores[i][a];
         allScore[i] -= scores[i][b];
     }
 
-    // scoresË³Ğò Êú¡¢ºá¡¢\¡¢/
+    // scoresé¡ºåº ç«–ã€æ¨ªã€\ã€/
     scores[0][a] = lineScore[0];
     scores[1][a] = line1Score[0];
     scores[0][b] = lineScore[1];
     scores[1][b] = line1Score[1];
 
-    // ¼ÓÉÏĞÂµÄ¼ÇÂ¼
+    // åŠ ä¸Šæ–°çš„è®°å½•
     for (i = 0; i < 2; i++)
     {
         allScore[i] += scores[i][a];
         allScore[i] += scores[i][b];
     }
 
-    if (p.y - p.x >= -10 && p.y - p.x <= 10) // µ±Æå×ÓÔÚÁ½¸ö¶Ô½ÇÏßÉÏÎ§³ÉµÄÇøÓòÄÚÊ±
+    if (p.y - p.x >= -10 && p.y - p.x <= 10) // å½“æ£‹å­åœ¨ä¸¤ä¸ªå¯¹è§’çº¿ä¸Šå›´æˆçš„åŒºåŸŸå†…æ—¶
     {
 
         for (i = 0; i < 2; i++)
@@ -716,7 +770,7 @@ void updateScore(Position p)
     }
 }
 
-// ¾ÖÃæÆÀ¹Àº¯Êı£¬¸øÒ»¸ö¾ÖÃæÆÀ·Ö
+// å±€é¢è¯„ä¼°å‡½æ•°ï¼Œç»™ä¸€ä¸ªå±€é¢è¯„åˆ†
 int evaluateSituation(Role role)
 {
 
@@ -734,22 +788,22 @@ int evaluateSituation(Role role)
     return 0;
 }
 
-// alpha-beta¼ôÖ¦
+// alpha-betaå‰ªæ
 int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
 {
     HashItem::Flag flag = HashItem::ALPHA;
-    int score = getHashItemScore(depth, alpha, beta);
+    int score = zh.getHashItemScore(depth, alpha, beta);
     if (score != UNKNOWN_SCORE && depth != DEPTH)
     {
         return score;
     }
-    // ÆÀ¹Àµ±Ç°¾ÖÃæ
+    // è¯„ä¼°å½“å‰å±€é¢
     int score1 = evaluateSituation(currentSearchRole);
     int score2 = evaluateSituation(currentSearchRole == HUMAN ? COMPUTOR : HUMAN);
 
     if (score1 >= 50000)
     {
-        return MAX_SCORE - 1000 - (DEPTH - depth); // Èç¹ûµ±Ç°¾ÖÃæÒÑ¾­Ê¤Àû£¬·µ»Ø×î´ó·ÖÊı
+        return MAX_SCORE - 1000 - (DEPTH - depth); // å¦‚æœå½“å‰å±€é¢å·²ç»èƒœåˆ©ï¼Œè¿”å›æœ€å¤§åˆ†æ•°
     }
     if (score2 >= 50000)
     {
@@ -758,53 +812,54 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
 
     if (depth == 0)
     {
-        recordHashItem(depth, score1 - score2, HashItem::EXACT);
+        zh.recordHashItem(depth, score1 - score2, HashItem::EXACT);
         return score1 - score2;
     }
 
     // set<Position> possiblePossitions = createPossiblePosition(board);
 
     int count = 0;
-    set<Position> possiblePositions;                                               // ´æ´¢¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
-    const set<Position>& tmpPossiblePositions = ppm.GetCurrentPossiblePositions(); // µ±Ç°¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
+    // set<Position> possiblePositions;                                               // å­˜å‚¨å¯èƒ½å‡ºç°çš„ä½ç½®
+    priority_queue<Position, vector<Position>, compare> possiblePositions; // å­˜å‚¨å¯èƒ½å‡ºç°çš„ä½ç½®
 
-    // ¶Ôµ±Ç°¿ÉÄÜ³öÏÖµÄÎ»ÖÃ½øĞĞ´ÖÂÔÆÀ·Ö
+    const set<Position> &tmpPossiblePositions = pp_manager.GetCurrentPossiblePositions(); // å½“å‰å¯èƒ½å‡ºç°çš„ä½ç½®
+
+    // å¯¹å½“å‰å¯èƒ½å‡ºç°çš„ä½ç½®è¿›è¡Œç²—ç•¥è¯„åˆ†
     set<Position>::iterator iter;
     for (iter = tmpPossiblePositions.begin(); iter != tmpPossiblePositions.end(); iter++)
     {
-        possiblePositions.insert(Position(iter->x, iter->y, evaluatePoint(*iter)));
+        possiblePositions.push(Position(iter->x, iter->y, evaluatePoint(*iter)));
     }
 
-    // ¶Ô¿ÉÄÜ³öÏÖµÄÎ»ÖÃ½øĞĞÆÀ·ÖÅÅĞò
+    // å¯¹å¯èƒ½å‡ºç°çš„ä½ç½®è¿›è¡Œè¯„åˆ†æ’åº
     while (!possiblePositions.empty())
     {
-        Position p = *possiblePositions.begin();
+        Position p = possiblePositions.top();
 
-        possiblePositions.erase(possiblePositions.begin());
+        possiblePositions.pop();
 
-        // ·ÅÖÃÆå×Ó
+        // æ”¾ç½®æ£‹å­
         board[p.x][p.y] = currentSearchRole;
-        currentZobristValue ^= boardZobristValue[currentSearchRole - 1][p.x][p.y];
+        zh.currentZobristValue ^= zh.boardZobristValue[currentSearchRole - 1][p.x][p.y];
         updateScore(p);
 
-        // Ôö¼Ó¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
+        // å¢åŠ å¯èƒ½å‡ºç°çš„ä½ç½®
         p.score = 0;
-        ppm.AddPossiblePositions(board, p);
+        pp_manager.AddPossiblePositions(board, p);
 
         int val = -abSearch(depth - 1, -beta, -alpha, currentSearchRole == HUMAN ? COMPUTOR : HUMAN);
 
+        // å–æ¶ˆä¸Šä¸€æ¬¡å¢åŠ çš„å¯èƒ½å‡ºç°çš„ä½ç½®
+        pp_manager.Rollback();
 
-        // È¡ÏûÉÏÒ»´ÎÔö¼ÓµÄ¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
-        ppm.Rollback();
-
-        // È¡Ïû·ÅÖÃ
+        // å–æ¶ˆæ”¾ç½®
         board[p.x][p.y] = 0;
-        currentZobristValue ^= boardZobristValue[currentSearchRole - 1][p.x][p.y];
+        zh.currentZobristValue ^= zh.boardZobristValue[currentSearchRole - 1][p.x][p.y];
         updateScore(p);
 
-        if (val >= beta) // µ±val >= betaÊ±£¬µ±Ç°½Úµã²»»á±»Ñ¡Ôñ£¬ËùÒÔÖ±½Ó·µ»Øbeta
+        if (val >= beta) // å½“val >= betaæ—¶ï¼Œå½“å‰èŠ‚ç‚¹ä¸ä¼šè¢«é€‰æ‹©ï¼Œæ‰€ä»¥ç›´æ¥è¿”å›beta
         {
-            recordHashItem(depth, beta, HashItem::BETA);
+            zh.recordHashItem(depth, beta, HashItem::BETA);
             return beta;
         }
         if (val > alpha)
@@ -818,17 +873,17 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
         }
 
         count++;
-        if (count >= POINT_NUM) // 
+        if (count >= POINT_NUM) //
         {
             break;
         }
     }
 
-    recordHashItem(depth, alpha, flag);
+    zh.recordHashItem(depth, alpha, flag);
     return alpha;
 }
 
-// »ñµÃÏÂÒ»²½µÄ×ß·¨
+// è·å¾—ä¸‹ä¸€æ­¥çš„èµ°æ³•
 Position getAGoodMove()
 {
     int score = abSearch(DEPTH, MIN_SCORE, MAX_SCORE, COMPUTOR);
@@ -843,7 +898,7 @@ Position getAGoodMove()
     return searchResult;
 }
 
-// ³õÊ¼»¯º¯Êı£¬²åÈëÌØÕ÷ºÍ·ÖÖµ
+// åˆå§‹åŒ–å‡½æ•°ï¼Œæ’å…¥ç‰¹å¾å’Œåˆ†å€¼
 void init()
 {
     vector<string> patternStrs;
@@ -852,48 +907,43 @@ void init()
         patternStrs.push_back(patterns[i].pattern);
     }
 
-    // ³õÊ¼»¯ACSearcher
+    // åˆå§‹åŒ–ACSearcher
     acs.LoadPattern(patternStrs);
     acs.BuildGotoTable();
     acs.BuildFailTable();
-
-    randomBoardZobristValue();
-    currentZobristValue = random64();
 }
 
-
-//ÈËÀàÏÂÆå£¬´«¸ø½çÃæ
-Position nextStep(int x, int y) {
-
+// äººç±»ä¸‹æ£‹ï¼Œä¼ ç»™ç•Œé¢
+Position nextStep(int x, int y)
+{
 
     board[x][y] = HUMAN;
-    currentZobristValue ^= boardZobristValue[HUMAN - 1][x][y];
+    zh.currentZobristValue ^= zh.boardZobristValue[HUMAN - 1][x][y];
     updateScore(Position(x, y));
 
-    //Ôö¼Ó¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
-    ppm.AddPossiblePositions(board, Position(x, y));
+    // å¢åŠ å¯èƒ½å‡ºç°çš„ä½ç½®
+    pp_manager.AddPossiblePositions(board, Position(x, y));
 
     Position result = getAGoodMove();
 
     board[result.x][result.y] = COMPUTOR;
-    currentZobristValue ^= boardZobristValue[COMPUTOR - 1][result.x][result.y];
+    zh.currentZobristValue ^= zh.boardZobristValue[COMPUTOR - 1][result.x][result.y];
     updateScore(result);
 
-    //Ôö¼Ó¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
-    ppm.AddPossiblePositions(board, result);
+    // å¢åŠ å¯èƒ½å‡ºç°çš„ä½ç½®
+    pp_manager.AddPossiblePositions(board, result);
 
     return result;
 }
 void updataSituation(int x, int y, int role)
 {
     board[x][y] = role;
-    currentZobristValue ^= boardZobristValue[role - 1][x][y];
+    zh.currentZobristValue ^= zh.boardZobristValue[role - 1][x][y];
     updateScore(Position(x, y));
-    ppm.AddPossiblePositions(board, Position(x, y));
+    pp_manager.AddPossiblePositions(board, Position(x, y));
 }
 
-
-int evaluatePattern(const string& line)
+int evaluatePattern(const string &line)
 {
     int score = 0;
     for (auto i : patterns)
@@ -914,28 +964,28 @@ int evaluate(int x, int y, int player)
     for (int i = 0; i < SIZE; i++)
     {
         line[0].push_back(board[i][y] == player ? '1' : board[i][y] == 0 ? '0'
-            : '2');
+                                                                         : '2');
     }
     totalScore += evaluatePattern(line[0]);
 
     for (int i = 0; i < SIZE; i++)
     {
         line[1].push_back(board[x][i] == player ? '1' : board[x][i] == 0 ? '0'
-            : '2');
+                                                                         : '2');
     }
     totalScore += evaluatePattern(line[1]);
 
     for (int i = x + min(y, SIZE - 1 - x), j = y - min(x, SIZE - 1 - y); i >= 0 && j < SIZE; i--, j++)
     {
         line[2].push_back(board[i][j] == player ? '1' : board[i][j] == 0 ? '0'
-            : '2');
+                                                                         : '2');
     }
     totalScore += evaluatePattern(line[2]);
 
     for (int i = x - min(x, y), j = y - min(x, y); i < SIZE && j < SIZE; i++, j++)
     {
         line[3].push_back(board[i][j] == player ? '1' : board[i][j] == 0 ? '0'
-            : '2');
+                                                                         : '2');
     }
     totalScore += evaluatePattern(line[3]);
 
@@ -949,7 +999,7 @@ int minimax(int depth, int alpha, int beta, bool maximizingPlayer, int player, i
     {
         int curscore;
         if (!maximizingPlayer)
-            curscore = evaluate(x, y, -player) - evaluate(lastx, lasty, player); // ´ÓaÀ´£¬¼ì²âµÄÎªai£¬player = -1
+            curscore = evaluate(x, y, -player) - evaluate(lastx, lasty, player); // ä»aæ¥ï¼Œæ£€æµ‹çš„ä¸ºaiï¼Œplayer = -1
         else
             curscore = evaluate(lastx, lasty, player) - evaluate(x, y, -player);
         return curscore;
@@ -1004,7 +1054,7 @@ int minimax(int depth, int alpha, int beta, bool maximizingPlayer, int player, i
     }
 }
 
-void nextMove(int player, int& new_x, int& new_y)
+void nextMove(int player, int &new_x, int &new_y)
 {
     int bestScore = INT32_MIN;
     int bestMoveX = -1;
@@ -1035,7 +1085,7 @@ int main()
 {
     init();
     int x, y, n;
-    // »Ö¸´Ä¿Ç°µÄÆåÅÌĞÅÏ¢
+    // æ¢å¤ç›®å‰çš„æ£‹ç›˜ä¿¡æ¯
     cin >> n;
     for (int i = 0; i < n - 1; i++)
     {
@@ -1052,25 +1102,25 @@ int main()
     }
     cin >> x >> y;
     if (x != -1)
-        board[x][y] = 1; // ¶Ô·½
+        board[x][y] = 1; // å¯¹æ–¹
 
-    // ´ËÊ±board[][]Àï´æ´¢µÄ¾ÍÊÇµ±Ç°ÆåÅÌµÄËùÓĞÆå×ÓĞÅÏ¢,xºÍy´æµÄÊÇ¶Ô·½×î½üÒ»²½ÏÂµÄÆå
+    // æ­¤æ—¶board[][]é‡Œå­˜å‚¨çš„å°±æ˜¯å½“å‰æ£‹ç›˜çš„æ‰€æœ‰æ£‹å­ä¿¡æ¯,xå’Œyå­˜çš„æ˜¯å¯¹æ–¹æœ€è¿‘ä¸€æ­¥ä¸‹çš„æ£‹
 
     /************************************************************************************/
-    /***********ÔÚÏÂÃæÌî³äÄãµÄ´úÂë£¬¾ö²ß½á¹û£¨±¾·½½«Âä×ÓµÄÎ»ÖÃ£©´æÈënew_xºÍnew_yÖĞ****************/
+    /***********åœ¨ä¸‹é¢å¡«å……ä½ çš„ä»£ç ï¼Œå†³ç­–ç»“æœï¼ˆæœ¬æ–¹å°†è½å­çš„ä½ç½®ï¼‰å­˜å…¥new_xå’Œnew_yä¸­****************/
     int new_x, new_y;
 
     if (n == 1)
     {
         if (x == -1)
         {
-            // µÚÒ»»ØºÏÎÒ·½ÏÈÊÖ£¬ÏÂÔÚÆåÅÌÖĞÑë
+            // ç¬¬ä¸€å›åˆæˆ‘æ–¹å…ˆæ‰‹ï¼Œä¸‹åœ¨æ£‹ç›˜ä¸­å¤®
             new_x = 7;
             new_y = 7;
         }
         else
         {
-            // Ö´ĞĞ×îÓÅµÄÏÂÒ»²½
+            // æ‰§è¡Œæœ€ä¼˜çš„ä¸‹ä¸€æ­¥
             Position p = nextStep(x, y);
             new_x = p.x;
             new_y = p.y;
@@ -1078,16 +1128,16 @@ int main()
     }
     else
     {
-        // Ö´ĞĞ×îÓÅµÄÏÂÒ»²½
+        // æ‰§è¡Œæœ€ä¼˜çš„ä¸‹ä¸€æ­¥
         Position p = nextStep(x, y);
         new_x = p.x;
         new_y = p.y;
     }
-    /***********ÔÚÉÏ·½Ìî³äÄãµÄ´úÂë£¬¾ö²ß½á¹û£¨±¾·½½«Âä×ÓµÄÎ»ÖÃ£©´æÈënew_xºÍnew_yÖĞ****************/
+    /***********åœ¨ä¸Šæ–¹å¡«å……ä½ çš„ä»£ç ï¼Œå†³ç­–ç»“æœï¼ˆæœ¬æ–¹å°†è½å­çš„ä½ç½®ï¼‰å­˜å…¥new_xå’Œnew_yä¸­****************/
     /************************************************************************************/
 
-    // ÆåÅÌ
-    // ÏòÆ½Ì¨Êä³ö¾ö²ß½á¹û
+    // æ£‹ç›˜
+    // å‘å¹³å°è¾“å‡ºå†³ç­–ç»“æœ
     printf("%d %d\n", new_x, new_y);
     return 0;
 }

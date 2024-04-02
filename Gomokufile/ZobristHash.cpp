@@ -1,5 +1,12 @@
 #include "ZobristHash.h"
 
+
+ZobristHash::ZobristHash()
+{
+    randomZobristValue();
+    initCurrentZobristValue();
+}
+
 void ZobristHash::recordHashItem(int depth, int score, HashItem::Flag flag)
 {
   int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
@@ -73,8 +80,4 @@ void ZobristHash::initCurrentZobristValue()
   currentZobristValue = random64();
 }
 
-ZobristHash::ZobristHash()
-{
-  randomZobristValue();
-  initCurrentZobristValue();
-}
+

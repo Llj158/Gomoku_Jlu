@@ -20,12 +20,10 @@ public:
     void AddPossiblePositions(int board[SIZE][SIZE],const Position& p);
     void Rollback();
     const set<Position>& GetCurrentPossiblePositions();
-    //void SetEvaluateFunc(int(*evaluateFunc)(Position p));
 private:
     set<Position> currentPossiblePositions;
     vector<PosHistory> allHistory;
     vector<pair<int, int> > directions;
-    // int (*evaluateFunc)(Position p);
 };
 
 
