@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <memory.h>
-
+#include <time.h>
 
 using namespace std;
 
@@ -17,7 +17,7 @@ using namespace std;
 #define MAX_SCORE 10000000
 #define MIN_SCORE -10000000
 const int PLAYER = 1;
-const int DEPTH = 6;
+const int DEPTH = 7;
 const int POINT_NUM = 9;
 const int SIZE = 15;
 
@@ -213,12 +213,13 @@ void ZobristHash::initCurrentZobristValue()
 #include <map>
 using namespace std;
 
-//trie树节点
-struct ACNode {
+// trie树节点
+struct ACNode
+{
     ACNode(int p, char c)
-        :parent(p),
-        ch(c),
-        fail(-1)
+        : parent(p),
+          ch(c),
+          fail(-1)
     {
     }
 
@@ -229,67 +230,66 @@ struct ACNode {
     int parent;
 };
 
-//AC算法类
+// AC算法类
 class ACSearcher
 {
 public:
     ACSearcher();
     ~ACSearcher();
 
-    void LoadPattern(const vector<string>& paterns);
+    void LoadPattern(const vector<string> &paterns);
     void BuildGotoTable();
     void BuildFailTable();
-    vector<int> ACSearch(const string& text);           //返回匹配到的模式的索引
+    vector<int> ACSearch(const string &text); // 返回匹配到的模式的索引
 
 private:
-    int maxState;                                       //最大状态数
-    vector<ACNode> nodes;                               //trie树
-    vector<string> paterns;                             //需要匹配的模式
+    int maxState;           // 最大状态数
+    vector<ACNode> nodes;   // trie树
+    vector<string> paterns; // 需要匹配的模式
 
-    void AddState(int parent, char ch);                                    //初始化新状态
+    void AddState(int parent, char ch); // 初始化新状态
 };
-
-
-
 
 #include <cassert>
 
-
 ACSearcher::ACSearcher()
-    :maxState(0)
+    : maxState(0)
 {
-    //初始化根节点
+    // 初始化根节点
     AddState(-1, 'a');
     nodes[0].fail = -1;
-
 }
-
 
 ACSearcher::~ACSearcher()
 {
 }
 
-
-void ACSearcher::LoadPattern(const vector<string>& paterns) {
+void ACSearcher::LoadPattern(const vector<string> &paterns)
+{
     this->paterns = paterns;
 }
 
-void ACSearcher::BuildGotoTable() {
+void ACSearcher::BuildGotoTable()
+{
     assert(nodes.size());
 
     unsigned int i, j;
-    for (i = 0; i < paterns.size(); i++) {
-        //从根节点开始
+    for (i = 0; i < paterns.size(); i++)
+    {
+        // 从根节点开始
         int currentIndex = 0;
-        for (j = 0; j < paterns[i].size(); j++) {
-            if (nodes[currentIndex].sons.find(paterns[i][j]) == nodes[currentIndex].sons.end()) {
+        for (j = 0; j < paterns[i].size(); j++)
+        {
+            if (nodes[currentIndex].sons.find(paterns[i][j]) == nodes[currentIndex].sons.end())
+            {
                 nodes[currentIndex].sons[paterns[i][j]] = ++maxState;
 
-                //生成新节点
+                // 生成新节点
                 AddState(currentIndex, paterns[i][j]);
                 currentIndex = maxState;
             }
-            else {
+            else
+            {
                 currentIndex = nodes[currentIndex].sons[paterns[i][j]];
             }
         }
@@ -298,64 +298,75 @@ void ACSearcher::BuildGotoTable() {
     }
 }
 
-void ACSearcher::BuildFailTable() {
+void ACSearcher::BuildFailTable()
+{
     assert(nodes.size());
 
-    //中间节点收集器
+    // 中间节点收集器
     vector<int> midNodesIndex;
 
-    //给第一层的节点设置fail为0，并把第二层节点加入到midState里
+    // 给第一层的节点设置fail为0，并把第二层节点加入到midState里
     ACNode root = nodes[0];
 
     map<char, int>::iterator iter1, iter2;
-    for (iter1 = root.sons.begin(); iter1 != root.sons.end(); iter1++) {
+    for (iter1 = root.sons.begin(); iter1 != root.sons.end(); iter1++)
+    {
         nodes[iter1->second].fail = 0;
-        ACNode& currentNode = nodes[iter1->second];
+        ACNode &currentNode = nodes[iter1->second];
 
-        //收集第三层节点
-        for (iter2 = currentNode.sons.begin(); iter2 != currentNode.sons.end(); iter2++) {
+        // 收集第三层节点
+        for (iter2 = currentNode.sons.begin(); iter2 != currentNode.sons.end(); iter2++)
+        {
             midNodesIndex.push_back(iter2->second);
         }
     }
 
-    //广度优先遍历
-    while (midNodesIndex.size()) {
+    // 广度优先遍历
+    while (midNodesIndex.size())
+    {
         vector<int> newMidNodesIndex;
 
         unsigned int i;
-        for (i = 0; i < midNodesIndex.size(); i++) {
-            ACNode& currentNode = nodes[midNodesIndex[i]];
+        for (i = 0; i < midNodesIndex.size(); i++)
+        {
+            ACNode &currentNode = nodes[midNodesIndex[i]];
 
-            //以下循环为寻找当前节点的fail值
+            // 以下循环为寻找当前节点的fail值
             int currentFail = nodes[currentNode.parent].fail;
-            while (true) {
-                ACNode& currentFailNode = nodes[currentFail];
+            while (true)
+            {
+                ACNode &currentFailNode = nodes[currentFail];
 
-                if (currentFailNode.sons.find(currentNode.ch) != currentFailNode.sons.end()) {
-                    //成功找到该节点的fail值
+                if (currentFailNode.sons.find(currentNode.ch) != currentFailNode.sons.end())
+                {
+                    // 成功找到该节点的fail值
                     currentNode.fail = currentFailNode.sons.find(currentNode.ch)->second;
 
-                    //后缀包含
-                    if (nodes[currentNode.fail].output.size()) {
+                    // 后缀包含
+                    if (nodes[currentNode.fail].output.size())
+                    {
                         currentNode.output.insert(currentNode.output.end(), nodes[currentNode.fail].output.begin(), nodes[currentNode.fail].output.end());
                     }
 
                     break;
                 }
-                else {
+                else
+                {
                     currentFail = currentFailNode.fail;
                 }
 
-                //如果是根节点
-                if (currentFail == -1) {
+                // 如果是根节点
+                if (currentFail == -1)
+                {
                     currentNode.fail = 0;
                     break;
                 }
             }
 
-            //收集下一层节点
-            for (iter1 = currentNode.sons.begin(); iter1 != currentNode.sons.end(); iter1++) {
-                //收集下一层节点
+            // 收集下一层节点
+            for (iter1 = currentNode.sons.begin(); iter1 != currentNode.sons.end(); iter1++)
+            {
+                // 收集下一层节点
                 newMidNodesIndex.push_back(iter1->second);
             }
         }
@@ -363,42 +374,49 @@ void ACSearcher::BuildFailTable() {
     }
 }
 
-vector<int> ACSearcher::ACSearch(const string& text) {
+vector<int> ACSearcher::ACSearch(const string &text)
+{
     vector<int> result;
 
-    //初始化为根节点
+    // 初始化为根节点
     int currentIndex = 0;
 
     unsigned int i;
     map<char, int>::iterator tmpIter;
-    for (i = 0; i < text.size();) {
-        //顺着trie树查找
-        if ((tmpIter = nodes[currentIndex].sons.find(text[i])) != nodes[currentIndex].sons.end()) {
+    for (i = 0; i < text.size();)
+    {
+        // 顺着trie树查找
+        if ((tmpIter = nodes[currentIndex].sons.find(text[i])) != nodes[currentIndex].sons.end())
+        {
             currentIndex = tmpIter->second;
             i++;
         }
-        else {
-            //失配的情况
-            while (nodes[currentIndex].fail != -1 && nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end()) {
+        else
+        {
+            // 失配的情况
+            while (nodes[currentIndex].fail != -1 && nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end())
+            {
                 currentIndex = nodes[currentIndex].fail;
             }
 
-            //如果没有成功找到合适的fail
-            if (nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end()) {
+            // 如果没有成功找到合适的fail
+            if (nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end())
+            {
                 i++;
             }
         }
 
-        if (nodes[currentIndex].output.size()) {
+        if (nodes[currentIndex].output.size())
+        {
             result.insert(result.end(), nodes[currentIndex].output.begin(), nodes[currentIndex].output.end());
         }
-
     }
 
     return result;
 }
 
-void ACSearcher::AddState(int parent, char ch) {
+void ACSearcher::AddState(int parent, char ch)
+{
     nodes.push_back(ACNode(parent, ch));
     assert(nodes.size() - 1 == maxState);
 }
@@ -513,11 +531,9 @@ const set<Position> &PossiblePositionManager::GetCurrentPossiblePositions()
 
 /*---------------------------PossiblePositionManager-----------------------------*/
 
-
 #include <iostream>
 
 using namespace std;
-
 
 /*------------------------全局变量-------------------------*/
 
@@ -560,10 +576,6 @@ vector<Pattern> patterns = {
 Position searchResult;
 
 /*------------------------全局变量-------------------------*/
-
-
-
-
 
 // 根据位置评分，其中board是当前棋盘，p是位置，role是评分角色，比如role是Human则是相对人类评分，比如role是computer则是对于电脑评分
 int evaluatePoint(Position p)
@@ -769,6 +781,39 @@ void updateScore(Position p)
             allScore[i] += scores[i][d];
     }
 }
+void rollbackScore(int x, int y)
+{
+    int a = y;
+    int b = SIZE + x;
+    int c = 2 * SIZE + (y - x + 10);
+    int d = 2 * SIZE + 21 + (x + y - 4);
+    for (int i = 0; i < 2; i++)
+    {
+        allScore[i] -= scores[i][a];
+        allScore[i] -= scores[i][b];
+        scores[i][a] = 0;//将该位置的分数清零
+        scores[i][b] = 0;
+    }
+
+    if (y - x >= -10 && y - x <= 10)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            allScore[i] -= scores[i][c];
+            scores[i][c] = 0;
+        }
+
+    }
+    if (x + y >= 4 && x + y <= 24)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            allScore[i] -= scores[i][d];
+            scores[i][d] = 0;
+        }
+    }
+}
+
 
 // 局面评估函数，给一个局面评分
 int evaluateSituation(Role role)
@@ -789,7 +834,7 @@ int evaluateSituation(Role role)
 }
 
 // alpha-beta剪枝
-int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
+int abSearch(int depth, int alpha, int beta, Role currentSearchRole,int limitDepth)
 {
     HashItem::Flag flag = HashItem::ALPHA;
     int score = zh.getHashItemScore(depth, alpha, beta);
@@ -847,7 +892,7 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
         p.score = 0;
         pp_manager.AddPossiblePositions(board, p);
 
-        int val = -abSearch(depth - 1, -beta, -alpha, currentSearchRole == HUMAN ? COMPUTOR : HUMAN);
+        int val = -abSearch(depth - 1, -beta, -alpha, currentSearchRole == HUMAN ? COMPUTOR : HUMAN, limitDepth);
 
         // 取消上一次增加的可能出现的位置
         pp_manager.Rollback();
@@ -866,7 +911,7 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
         {
             flag = HashItem::EXACT;
             alpha = val;
-            if (depth == DEPTH)
+            if (depth == limitDepth)
             {
                 searchResult = p;
             }
@@ -886,14 +931,26 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole)
 // 获得下一步的走法
 Position getAGoodMove()
 {
-    int score = abSearch(DEPTH, MIN_SCORE, MAX_SCORE, COMPUTOR);
-    if (score >= MAX_SCORE - 1000 - 1)
+    int i = 5;
+    while (i <= DEPTH)
     {
-        // winner = COMPUTOR;
-    }
-    else if (score <= MIN_SCORE + 1000 + 1)
-    {
-        // winner = HUMAN;
+        int threshold = 0.1 * (double)CLOCKS_PER_SEC;
+        clock_t startTime = clock(); // 记录开始时间
+        int score = abSearch(i, MIN_SCORE, MAX_SCORE, COMPUTOR, i);
+        if (score >= MAX_SCORE - 1000 - 1)
+        {
+            // winner = COMPUTOR;
+        }
+        else if (score <= MIN_SCORE + 1000 + 1)
+        {
+            // winner = HUMAN;
+        }
+        i++;
+        clock_t endTime = clock(); // 记录结束时间
+        if (endTime - startTime > threshold)
+        {
+            break;
+        }
     }
     return searchResult;
 }
@@ -942,6 +999,14 @@ void updataSituation(int x, int y, int role)
     updateScore(Position(x, y));
     pp_manager.AddPossiblePositions(board, Position(x, y));
 }
+
+void rollbackSituation(int x, int y,int role)
+{
+	board[x][y] = EMPTY;
+    zh.currentZobristValue ^= zh.boardZobristValue[role - 1][x][y];
+    rollbackScore(x, y);
+	pp_manager.Rollback();
+}  
 
 int evaluatePattern(const string &line)
 {
@@ -1080,64 +1145,127 @@ void nextMove(int player, int &new_x, int &new_y)
     new_x = bestMoveX;
     new_y = bestMoveY;
 }
+int needSwapboard[15][15] =
+{
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,1,1,0,0,0,0,0,0,0,0,0,1,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,0,0,0,1,1},
+    {1,1,1,0,0,0,0,0,0,0,0,0,1,1,1},
+	{1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+	{1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+};
+int isSwap(int x, int y)
+{
+    return !needSwapboard[x][y];
+}
+
 
 int main()
 {
     init();
+    int new_x, new_y;
     int x, y, n;
     // 恢复目前的棋盘信息
     cin >> n;
-    for (int i = 0; i < n - 1; i++)
-    {
-        cin >> x >> y;
-        if (x != -1)
-        {
-            updataSituation(x, y, 1);
-        }
-        cin >> x >> y;
-        if (x != -1)
-        {
-            updataSituation(x, y, 2);
-        }
-    }
-    cin >> x >> y;
-    if (x != -1)
-        board[x][y] = 1; // 对方
-
-    // 此时board[][]里存储的就是当前棋盘的所有棋子信息,x和y存的是对方最近一步下的棋
-
-    /************************************************************************************/
-    /***********在下面填充你的代码，决策结果（本方将落子的位置）存入new_x和new_y中****************/
-    int new_x, new_y;
-
     if (n == 1)
     {
-        if (x == -1)
+        cin >> x >> y;
+        if (x != -1)
         {
-            // 第一回合我方先手，下在棋盘中央
-            new_x = 7;
-            new_y = 7;
+            if (isSwap(x, y))
+            {
+                new_x = -1;
+                new_y = -1;
+			}
+            else
+            {
+                Position p = nextStep(x, y);
+                new_x = p.x;
+                new_y = p.y;
+            }
         }
-        else
+        else//我方先手下在平衡点
         {
-            // 执行最优的下一步
-            Position p = nextStep(x, y);
-            new_x = p.x;
-            new_y = p.y;
+            new_x = 3;
+            new_y = 2;
         }
     }
     else
     {
-        // 执行最优的下一步
+        /*
+        3
+        -1 -1
+        2 3
+        -1 -1换手
+        3 4
+        3 3
+
+        */
+        
+        int lastx = 0, lasty = 0;
+        int i = 0;
+        for (i = 0; i < n - 1; i++)
+        {
+            cin >> x >> y;
+            if (x != -1)
+            {
+                updataSituation(x, y, 1);
+            }
+            else if (i != 0)//人类交换
+            {
+                rollbackSituation(lastx, lasty, COMPUTOR);
+                updataSituation(lastx, lasty, 1);
+            }
+            lastx = x; lasty = y;
+            cin >> x >> y;
+            if (x != -1)
+            {
+                updataSituation(x, y, 2);
+            }
+            else if (i == 0)//ai交换
+            {
+				rollbackSituation(lastx, lasty, HUMAN);
+				updataSituation(lastx, lasty, 2);
+			}
+            lastx = x; lasty = y;
+        }
+        cin >> x >> y;
+        if (x != -1)
+            board[x][y] = 1; // 对方
+        else if (i != 0)//人类交换
+        {
+            x = lastx;
+            y = lasty;
+            rollbackSituation(x, y, COMPUTOR);
+            updataSituation(x, y, 1);
+        }
+
+        // 此时board[][]里存储的就是当前棋盘的所有棋子信息,x和y存的是对方最近一步下的棋
+
+        /************************************************************************************/
+        /***********在下面填充你的代码，决策结果（本方将落子的位置）存入new_x和new_y中****************/
+
+
+
+            // 执行最优的下一步
         Position p = nextStep(x, y);
         new_x = p.x;
         new_y = p.y;
-    }
-    /***********在上方填充你的代码，决策结果（本方将落子的位置）存入new_x和new_y中****************/
-    /************************************************************************************/
+        /***********在上方填充你的代码，决策结果（本方将落子的位置）存入new_x和new_y中****************/
+        /************************************************************************************/
 
-    // 棋盘
-    // 向平台输出决策结果
+        // 棋盘
+        // 向平台输出决策结果
+    }
     printf("%d %d\n", new_x, new_y);
     return 0;
 }
