@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <time.h>
 #include <random>
+
 using namespace std;
 
 /*---------------------------head-----------------------------*/
@@ -21,7 +22,7 @@ using namespace std;
 #define MIN_SCORE -10000000
 const int PLAYER = 1;
 const int DEPTH = 7;
-const int POINT_NUM = 7;
+const int POINT_NUM = 8;
 const int SIZE = 15;
 const double timeLimit = 0.99;
 const double iterLimit = 0.1;
@@ -45,33 +46,11 @@ public:
     int x;
     int y;
     int score;
-    Position() {}
-    Position(int x, int y)
-    {
-        this->x = x;
-        this->y = y;
-        score = 0;
-    }
-    Position(int x, int y, int score)
+    Position(int x = 0, int y = 0, int score = 0)
     {
         this->x = x;
         this->y = y;
         this->score = score;
-    }
-    bool operator<(const Position &pos) const
-    {
-        if (score != pos.score)
-        {
-            return score > pos.score;
-        }
-        if (x != pos.x)
-        {
-            return x < pos.x;
-        }
-        else
-        {
-            return y < pos.y;
-        }
     }
 };
 
@@ -110,19 +89,19 @@ struct PointEqual
     }
 };
 
-// ±£´æÆå¾ÖµÄ¹şÏ£±íÌõÄ¿
+// ä¿å­˜æ£‹å±€çš„å“ˆå¸Œè¡¨æ¡ç›®
 struct HashItem
 {
-    long long checksum; // Ğ£ÑéºÍ
-    int depth;          // ËÑË÷Éî¶È
-    int score;          // ·ÖÊı
+    long long checksum; // æ ¡éªŒå’Œ
+    int depth;          // æœç´¢æ·±åº¦
+    int score;          // åˆ†æ•°
     enum Flag
     {
         ALPHA = 0,
         BETA = 1,
         EXACT = 2,
         EMPTY = 3
-    } flag; // ALPHA¼ôÖ¦£¬BETA¼ôÖ¦£¬È·ÇĞÖµ£¬¿Õ
+    } flag; // ALPHAå‰ªæï¼ŒBETAå‰ªæï¼Œç¡®åˆ‡å€¼ï¼Œç©º
 };
 
 struct Pattern
@@ -139,15 +118,14 @@ class ZobristHash
 {
 public:
     ZobristHash();
-    ~ZobristHash(){};
     void recordHashItem(int depth, int score, HashItem::Flag flag);
     int getHashItemScore(int depth, int alpha, int beta);
-    long long random64();
+    long long getrandom64();
     void randomZobristValue();
-    void initCurrentZobristValue();
+    void initValue();
 
     long long boardZobristValue[2][SIZE][SIZE];
-    long long currentZobristValue; // µ±Ç°¾ÖÃæµÄzobristÖµ
+    long long currentZobristValue; // å½“å‰å±€é¢çš„zobristå€¼
 private:
     HashItem hashItems[HASH_ITEM_INDEX_MASK + 1];
 };
@@ -155,45 +133,45 @@ private:
 ZobristHash::ZobristHash()
 {
     randomZobristValue();
-    initCurrentZobristValue();
+    initValue();
 }
 
 void ZobristHash::recordHashItem(int depth, int score, HashItem::Flag flag)
 {
     int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
-    HashItem *phashItem = &hashItems[index];
 
-    if (phashItem->flag != HashItem::EMPTY && phashItem->depth > depth) // Èç¹ûµ±Ç°ÌõÄ¿ÒÑ¾­ÓĞÊı¾İ£¬ÇÒÉî¶ÈĞ¡ÓÚµ±Ç°Éî¶È£¬Ôò²»¸²¸Ç
+    if (hashItems[index].flag != HashItem::EMPTY && hashItems[index].depth > depth) // å¦‚æœå½“å‰æ¡ç›®å·²ç»æœ‰æ•°æ®ï¼Œä¸”æ·±åº¦å°äºå½“å‰æ·±åº¦ï¼Œåˆ™ä¸è¦†ç›–
         return;
-
-    phashItem->checksum = currentZobristValue;
-    phashItem->score = score;
-    phashItem->flag = flag;
-    phashItem->depth = depth;
+    else
+    {
+        hashItems[index].checksum = currentZobristValue;
+        hashItems[index].depth = depth;
+        hashItems[index].score = score;
+        hashItems[index].flag = flag;
+    }
 }
 
-// ÔÚ¹şÏ£±íÖĞÈ¡µÃ¼ÆËãºÃµÄ¾ÖÃæµÄ·ÖÊı
+// åœ¨å“ˆå¸Œè¡¨ä¸­å–å¾—è®¡ç®—å¥½çš„å±€é¢çš„åˆ†æ•°
 int ZobristHash::getHashItemScore(int depth, int alpha, int beta)
 {
     int index = (int)(currentZobristValue & HASH_ITEM_INDEX_MASK);
-    HashItem *phashItem = &hashItems[index];
 
-    if (phashItem->flag == HashItem::EMPTY)
+    if (hashItems[index].flag == HashItem::EMPTY)
         return UNKNOWN_SCORE;
 
-    if (phashItem->checksum == currentZobristValue) // Ğ£ÑéºÍÏàÍ¬,Èç²»ÏàÍ¬ÔòËµÃ÷Õâ¸ö¾ÖÃæµÄÊı¾İÒÑ¾­±»¸²¸ÇÁË
+    if (hashItems[index].checksum == currentZobristValue) // æ ¡éªŒå’Œç›¸åŒ,å¦‚ä¸ç›¸åŒåˆ™è¯´æ˜è¿™ä¸ªå±€é¢çš„æ•°æ®å·²ç»è¢«è¦†ç›–äº†
     {
-        if (phashItem->depth >= depth)
+        if (hashItems[index].depth >= depth)
         {
-            if (phashItem->flag == HashItem::EXACT)
+            if (hashItems[index].flag == HashItem::EXACT)
             {
-                return phashItem->score;
+                return hashItems[index].score;
             }
-            if (phashItem->flag == HashItem::ALPHA && phashItem->score <= alpha)
+            if (hashItems[index].flag == HashItem::ALPHA && hashItems[index].score <= alpha)
             {
                 return alpha;
             }
-            if (phashItem->flag == HashItem::BETA && phashItem->score >= beta)
+            if (hashItems[index].flag == HashItem::BETA && hashItems[index].score >= beta)
             {
                 return beta;
             }
@@ -203,32 +181,35 @@ int ZobristHash::getHashItemScore(int depth, int alpha, int beta)
     return UNKNOWN_SCORE;
 }
 
-// Éú³É64Î»Ëæ»úÊı
-long long ZobristHash::random64()
+// ç”Ÿæˆ64ä½éšæœºæ•°
+long long ZobristHash::getrandom64()
 {
-    return (long long)rand() | ((long long)rand() << 15) | ((long long)rand() << 30) | ((long long)rand() << 45) | ((long long)rand() << 60);
+    random_device rd;
+    mt19937_64 mt(rd());
+
+    uint64_t random64 = mt();
+    return random64;
 }
 
-// Éú³Ézobrist¼üÖµ
+// ç”Ÿæˆzobristé”®å€¼
 void ZobristHash::randomZobristValue()
 {
-    int i, j, k;
-    for (i = 0; i < 2; i++)
+    for (int j = 0; j < SIZE; j++)
     {
-        for (j = 0; j < SIZE; j++)
+        for (int k = 0; k < SIZE; k++)
         {
-            for (k = 0; k < SIZE; k++)
+            for (int i = 0; i < 2; i++)
             {
-                boardZobristValue[i][j][k] = random64();
+                boardZobristValue[i][j][k] = getrandom64();
             }
         }
     }
 }
 
-// ³õÊ¼»¯³õÊ¼¾ÖÃæµÄzobristÖµ
-void ZobristHash::initCurrentZobristValue()
+// åˆå§‹åŒ–åˆå§‹å±€é¢çš„zobristå€¼
+void ZobristHash::initValue()
 {
-    currentZobristValue = random64();
+    currentZobristValue = getrandom64();
 }
 
 /*---------------------------ZobristHash-----------------------------*/
@@ -237,7 +218,7 @@ void ZobristHash::initCurrentZobristValue()
 
 using namespace std;
 
-// trieÊ÷½Úµã
+// trieæ ‘èŠ‚ç‚¹
 struct ACNode
 {
     ACNode(int p, char c)
@@ -254,36 +235,31 @@ struct ACNode
     int parent;
 };
 
-// ACËã·¨Àà
+// ACç®—æ³•ç±»
 class ACSearcher
 {
 public:
     ACSearcher();
-    ~ACSearcher();
 
     void LoadPattern(const vector<string> &paterns);
     void BuildGotoTable();
     void BuildFailTable();
-    vector<int> ACSearch(const string &text); // ·µ»ØÆ¥Åäµ½µÄÄ£Ê½µÄË÷Òı
+    vector<int> ACSearch(const string &text); // è¿”å›åŒ¹é…åˆ°çš„æ¨¡å¼çš„ç´¢å¼•
 
 private:
-    int maxState;           // ×î´ó×´Ì¬Êı
-    vector<ACNode> nodes;   // trieÊ÷
-    vector<string> paterns; // ĞèÒªÆ¥ÅäµÄÄ£Ê½
+    int maxState;           // æœ€å¤§çŠ¶æ€æ•°
+    vector<ACNode> nodes;   // trieæ ‘
+    vector<string> paterns; // éœ€è¦åŒ¹é…çš„æ¨¡å¼
 
-    void AddState(int parent, char ch); // ³õÊ¼»¯ĞÂ×´Ì¬
+    void AddState(int parent, char ch); // åˆå§‹åŒ–æ–°çŠ¶æ€
 };
 
 ACSearcher::ACSearcher()
     : maxState(0)
 {
-    // ³õÊ¼»¯¸ù½Úµã
+    // åˆå§‹åŒ–æ ¹èŠ‚ç‚¹
     AddState(-1, 'a');
     nodes[0].fail = -1;
-}
-
-ACSearcher::~ACSearcher()
-{
 }
 
 void ACSearcher::LoadPattern(const vector<string> &paterns)
@@ -298,7 +274,7 @@ void ACSearcher::BuildGotoTable()
     unsigned int i, j;
     for (i = 0; i < paterns.size(); i++)
     {
-        // ´Ó¸ù½Úµã¿ªÊ¼
+        // ä»æ ¹èŠ‚ç‚¹å¼€å§‹
         int currentIndex = 0;
         for (j = 0; j < paterns[i].size(); j++)
         {
@@ -306,7 +282,7 @@ void ACSearcher::BuildGotoTable()
             {
                 nodes[currentIndex].sons[paterns[i][j]] = ++maxState;
 
-                // Éú³ÉĞÂ½Úµã
+                // ç”Ÿæˆæ–°èŠ‚ç‚¹
                 AddState(currentIndex, paterns[i][j]);
                 currentIndex = maxState;
             }
@@ -324,10 +300,10 @@ void ACSearcher::BuildFailTable()
 {
     assert(nodes.size());
 
-    // ÖĞ¼ä½ÚµãÊÕ¼¯Æ÷
+    // ä¸­é—´èŠ‚ç‚¹æ”¶é›†å™¨
     vector<int> midNodesIndex;
 
-    // ¸øµÚÒ»²ãµÄ½ÚµãÉèÖÃfailÎª0£¬²¢°ÑµÚ¶ş²ã½Úµã¼ÓÈëµ½midStateÀï
+    // ç»™ç¬¬ä¸€å±‚çš„èŠ‚ç‚¹è®¾ç½®failä¸º0ï¼Œå¹¶æŠŠç¬¬äºŒå±‚èŠ‚ç‚¹åŠ å…¥åˆ°midStateé‡Œ
     ACNode root = nodes[0];
 
     unordered_map<char, int>::iterator iter1, iter2;
@@ -336,14 +312,14 @@ void ACSearcher::BuildFailTable()
         nodes[iter1->second].fail = 0;
         ACNode &currentNode = nodes[iter1->second];
 
-        // ÊÕ¼¯µÚÈı²ã½Úµã
+        // æ”¶é›†ç¬¬ä¸‰å±‚èŠ‚ç‚¹
         for (iter2 = currentNode.sons.begin(); iter2 != currentNode.sons.end(); iter2++)
         {
             midNodesIndex.push_back(iter2->second);
         }
     }
 
-    // ¹ã¶ÈÓÅÏÈ±éÀú
+    // å¹¿åº¦ä¼˜å…ˆéå†
     while (midNodesIndex.size())
     {
         vector<int> newMidNodesIndex;
@@ -353,7 +329,7 @@ void ACSearcher::BuildFailTable()
         {
             ACNode &currentNode = nodes[midNodesIndex[i]];
 
-            // ÒÔÏÂÑ­»·ÎªÑ°ÕÒµ±Ç°½ÚµãµÄfailÖµ
+            // ä»¥ä¸‹å¾ªç¯ä¸ºå¯»æ‰¾å½“å‰èŠ‚ç‚¹çš„failå€¼
             int currentFail = nodes[currentNode.parent].fail;
             while (true)
             {
@@ -361,10 +337,10 @@ void ACSearcher::BuildFailTable()
 
                 if (currentFailNode.sons.find(currentNode.ch) != currentFailNode.sons.end())
                 {
-                    // ³É¹¦ÕÒµ½¸Ã½ÚµãµÄfailÖµ
+                    // æˆåŠŸæ‰¾åˆ°è¯¥èŠ‚ç‚¹çš„failå€¼
                     currentNode.fail = currentFailNode.sons.find(currentNode.ch)->second;
 
-                    // ºó×º°üº¬
+                    // åç¼€åŒ…å«
                     if (nodes[currentNode.fail].output.size())
                     {
                         currentNode.output.insert(currentNode.output.end(), nodes[currentNode.fail].output.begin(), nodes[currentNode.fail].output.end());
@@ -377,7 +353,7 @@ void ACSearcher::BuildFailTable()
                     currentFail = currentFailNode.fail;
                 }
 
-                // Èç¹ûÊÇ¸ù½Úµã
+                // å¦‚æœæ˜¯æ ¹èŠ‚ç‚¹
                 if (currentFail == -1)
                 {
                     currentNode.fail = 0;
@@ -385,10 +361,10 @@ void ACSearcher::BuildFailTable()
                 }
             }
 
-            // ÊÕ¼¯ÏÂÒ»²ã½Úµã
+            // æ”¶é›†ä¸‹ä¸€å±‚èŠ‚ç‚¹
             for (iter1 = currentNode.sons.begin(); iter1 != currentNode.sons.end(); iter1++)
             {
-                // ÊÕ¼¯ÏÂÒ»²ã½Úµã
+                // æ”¶é›†ä¸‹ä¸€å±‚èŠ‚ç‚¹
                 newMidNodesIndex.push_back(iter1->second);
             }
         }
@@ -400,14 +376,14 @@ vector<int> ACSearcher::ACSearch(const string &text)
 {
     vector<int> result;
 
-    // ³õÊ¼»¯Îª¸ù½Úµã
+    // åˆå§‹åŒ–ä¸ºæ ¹èŠ‚ç‚¹
     int currentIndex = 0;
 
     unsigned int i;
     unordered_map<char, int>::iterator tmpIter;
     for (i = 0; i < text.size();)
     {
-        // Ë³×ÅtrieÊ÷²éÕÒ
+        // é¡ºç€trieæ ‘æŸ¥æ‰¾
         if ((tmpIter = nodes[currentIndex].sons.find(text[i])) != nodes[currentIndex].sons.end())
         {
             currentIndex = tmpIter->second;
@@ -415,13 +391,13 @@ vector<int> ACSearcher::ACSearch(const string &text)
         }
         else
         {
-            // Ê§ÅäµÄÇé¿ö
+            // å¤±é…çš„æƒ…å†µ
             while (nodes[currentIndex].fail != -1 && nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end())
             {
                 currentIndex = nodes[currentIndex].fail;
             }
 
-            // Èç¹ûÃ»ÓĞ³É¹¦ÕÒµ½ºÏÊÊµÄfail
+            // å¦‚æœæ²¡æœ‰æˆåŠŸæ‰¾åˆ°åˆé€‚çš„fail
             if (nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end())
             {
                 i++;
@@ -459,7 +435,6 @@ class PossiblePositionManager
 {
 public:
     PossiblePositionManager();
-    ~PossiblePositionManager();
     void AddPossiblePositions(int board[SIZE][SIZE], const Position &p);
     void AddPossiblePositions2(int board[SIZE][SIZE], const Position &p);
     void Rollback();
@@ -488,10 +463,6 @@ PossiblePositionManager::PossiblePositionManager()
     directions.emplace_back(pair<int, int>(0, -1));
 }
 
-PossiblePositionManager::~PossiblePositionManager()
-{
-}
-
 void PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const Position &p)
 {
 
@@ -503,29 +474,29 @@ void PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const 
         {
             auto insertResult = currentPossiblePositions.insert(newPos);
 
-            // Èç¹û²åÈë³É¹¦
+            // å¦‚æœæ’å…¥æˆåŠŸ
             if (insertResult.second)
                 newPositions.insert(newPos);
         }
     }
 
-    PosHistory ph; // ĞÂÔöÀúÊ·¼ÇÂ¼
+    PosHistory ph; // æ–°å¢å†å²è®°å½•
     ph.newPositions = newPositions;
 
-    if (currentPossiblePositions.find(p) != currentPossiblePositions.end()) // µ±Ç°Ñ¡ÖĞÎ»ÖÃÔ­±¾Îª¿ÉÑ¡Î»ÖÃ£¬ÏÖÑ¡Ôñºó²»¿ÉÄÜÑ¡Ôñ£¬É¾³ı
+    if (currentPossiblePositions.find(p) != currentPossiblePositions.end()) // å½“å‰é€‰ä¸­ä½ç½®åŸæœ¬ä¸ºå¯é€‰ä½ç½®ï¼Œç°é€‰æ‹©åä¸å¯èƒ½é€‰æ‹©ï¼Œåˆ é™¤
     {
         currentPossiblePositions.erase(p);
         ph.removedPosition = p;
     }
     else
-        ph.removedPosition.x = -1; // ¸ø»ØËİÌá¹©±êÖ¾
+        ph.removedPosition.x = -1; // ç»™å›æº¯æä¾›æ ‡å¿—
 
-    allHistory.push_back(ph); // ±£´æÀúÊ·¼ÇÂ¼
+    allHistory.push_back(ph); // ä¿å­˜å†å²è®°å½•
 }
 void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const Position &p)
 {
 
-    // ¼ÓÈëÏÂÁËµÄÆåÍâÎ§Á½¸ñµÄµã
+    // åŠ å…¥ä¸‹äº†çš„æ£‹å¤–å›´ä¸¤æ ¼çš„ç‚¹
     unordered_set<Position, PointHash, PointEqual> newPositions;
     for (const auto &direct : directions)
     {
@@ -534,7 +505,7 @@ void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const
         {
             auto insertResult = currentPossiblePositions.insert(newPos);
 
-            // Èç¹û²åÈë³É¹¦
+            // å¦‚æœæ’å…¥æˆåŠŸ
             if (insertResult.second)
                 newPositions.insert(newPos);
         }
@@ -546,19 +517,19 @@ void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const
         {
             auto insertResult = currentPossiblePositions.insert(newPos);
 
-            // Èç¹û²åÈë³É¹¦
+            // å¦‚æœæ’å…¥æˆåŠŸ
             if (insertResult.second)
                 newPositions.insert(newPos);
         }
     }
     // for (const auto& direct : directions)
     //{
-    //    Position newPos(p.x + 2 * direct.first, p.y + direct.second);
+    //     Position newPos(p.x + 2 * direct.first, p.y + direct.second);
     //     if (isValidPosition(newPos) && board[newPos.x][newPos.y] == EMPTY)
     //     {
     //         auto insertResult = currentPossiblePositions.insert(newPos);
 
-    //        // Èç¹û²åÈë³É¹¦
+    //        // å¦‚æœæ’å…¥æˆåŠŸ
     //        if (insertResult.second)
     //            newPositions.insert(newPos);
     //    }
@@ -570,27 +541,27 @@ void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const
     //    {
     //        auto insertResult = currentPossiblePositions.insert(newPos);
 
-    //        // Èç¹û²åÈë³É¹¦
+    //        // å¦‚æœæ’å…¥æˆåŠŸ
     //        if (insertResult.second)
     //            newPositions.insert(newPos);
     //    }
     //}
 
-    PosHistory ph; // ĞÂÔöÀúÊ·¼ÇÂ¼
+    PosHistory ph; // æ–°å¢å†å²è®°å½•
     // ph.newPositions = newPositions;
 
     for (auto pos : newPositions)
         ph.newPositions.insert(pos);
 
-    if (currentPossiblePositions.find(p) != currentPossiblePositions.end()) // µ±Ç°Ñ¡ÖĞÎ»ÖÃÔ­±¾Îª¿ÉÑ¡Î»ÖÃ£¬ÏÖÑ¡Ôñºó²»¿ÉÄÜÑ¡Ôñ£¬É¾³ı
+    if (currentPossiblePositions.find(p) != currentPossiblePositions.end()) // å½“å‰é€‰ä¸­ä½ç½®åŸæœ¬ä¸ºå¯é€‰ä½ç½®ï¼Œç°é€‰æ‹©åä¸å¯èƒ½é€‰æ‹©ï¼Œåˆ é™¤
     {
         currentPossiblePositions.erase(p);
         ph.removedPosition = p;
     }
     else
-        ph.removedPosition.x = -1; // ¸ø»ØËİÌá¹©±êÖ¾
+        ph.removedPosition.x = -1; // ç»™å›æº¯æä¾›æ ‡å¿—
 
-    allHistory.emplace_back(ph); // ±£´æÀúÊ·¼ÇÂ¼
+    allHistory.emplace_back(ph); // ä¿å­˜å†å²è®°å½•
 }
 void PossiblePositionManager::Rollback()
 {
@@ -600,13 +571,13 @@ void PossiblePositionManager::Rollback()
     PosHistory hi = allHistory.back();
     allHistory.pop_back();
 
-    // »ØËİ
+    // å›æº¯
 
-    // Çå³ıµôÇ°Ò»²½¼ÓÈëµÄµã
+    // æ¸…é™¤æ‰å‰ä¸€æ­¥åŠ å…¥çš„ç‚¹
     for (auto &pos : hi.newPositions)
         currentPossiblePositions.erase(pos);
 
-    // ¼Ó»ØÇ°Ò»²½É¾³ıµÄµã
+    // åŠ å›å‰ä¸€æ­¥åˆ é™¤çš„ç‚¹
     if (hi.removedPosition.x != -1)
         currentPossiblePositions.insert(hi.removedPosition);
 }
@@ -618,12 +589,12 @@ const unordered_set<Position, PointHash, PointEqual> &PossiblePositionManager::G
 
 /*---------------------------PossiblePositionManager-----------------------------*/
 
-/*------------------------È«¾Ö±äÁ¿-------------------------*/
+/*------------------------å…¨å±€å˜é‡-------------------------*/
 
 int board[15][15] = {0};
 
-int scores[2][72]; // ±£´æÆå¾Ö·ÖÊı£¨2¸ö½ÇÉ«72ĞĞ£¬°üÀ¨ºáÊúÆ²Şà£©
-int allScore[2];   // ¾ÖÃæ×ÜÆÀ·Ö£¨2¸ö½ÇÉ«£©
+int scores[4][21][2]; // ä¿å­˜æ£‹å±€åˆ†æ•°
+int allScore[2];      // å±€é¢æ€»è¯„åˆ†ï¼ˆ2ä¸ªè§’è‰²ï¼‰
 
 ACSearcher acs;
 PossiblePositionManager pp_manager;
@@ -665,19 +636,19 @@ vector<Pattern> patterns = {
     {"10001", 20}};
 
 // priority_queue<Position, vector<Position>, compare> topPossiblePositions;
-//  ´æ´¢ËÑË÷½á¹û£¬¼´ÏÂÒ»²½Æå×ÓµÄÎ»ÖÃ
+//  å­˜å‚¨æœç´¢ç»“æœï¼Œå³ä¸‹ä¸€æ­¥æ£‹å­çš„ä½ç½®
 Position searchResult;
 clock_t startTime;
-/*------------------------È«¾Ö±äÁ¿-------------------------*/
+/*------------------------å…¨å±€å˜é‡-------------------------*/
 
-// ¸ù¾İÎ»ÖÃÆÀ·Ö£¬ÆäÖĞboardÊÇµ±Ç°ÆåÅÌ£¬pÊÇÎ»ÖÃ£¬roleÊÇÆÀ·Ö½ÇÉ«£¬±ÈÈçroleÊÇHumanÔòÊÇÏà¶ÔÈËÀàÆÀ·Ö£¬±ÈÈçroleÊÇcomputerÔòÊÇ¶ÔÓÚµçÄÔÆÀ·Ö
+// æ ¹æ®ä½ç½®è¯„åˆ†ï¼Œå…¶ä¸­boardæ˜¯å½“å‰æ£‹ç›˜ï¼Œpæ˜¯ä½ç½®ï¼Œroleæ˜¯è¯„åˆ†è§’è‰²ï¼Œæ¯”å¦‚roleæ˜¯Humanåˆ™æ˜¯ç›¸å¯¹äººç±»è¯„åˆ†ï¼Œæ¯”å¦‚roleæ˜¯computeråˆ™æ˜¯å¯¹äºç”µè„‘è¯„åˆ†
 int evaluatePoint(Position p)
 {
     int result;
     int i, j;
 
     result = 0;
-    int role = HUMAN; // Á½¸ö½ÇÉ«¶¼ÒªÆÀ·Ö£¬ËùÒÔÕâÀïÏÈÉèÎªHUMAN
+    int role = HUMAN; // ä¸¤ä¸ªè§’è‰²éƒ½è¦è¯„åˆ†ï¼Œæ‰€ä»¥è¿™é‡Œå…ˆè®¾ä¸ºHUMAN
 
     string lines[4];
     string lines1[4];
@@ -790,7 +761,7 @@ int evaluatePoint(Position p)
     int score_ai = 0;
     int max_human = 0;
     int max_ai = 0;
-    int doubleflag = 0; // ±ÜÃâÍ¬Ò»ĞĞ·ÖÊıÖØ¸´¼Ó±¶
+    int doubleflag = 0; // é¿å…åŒä¸€è¡Œåˆ†æ•°é‡å¤åŠ å€
     int lock = 0;
     for (i = 0; i < 4; i++)
     {
@@ -842,7 +813,7 @@ void updateScore(Position p)
     int i, j;
     int role = HUMAN;
 
-    // Êú
+    // ç«–
     for (i = 0; i < SIZE; i++)
     {
 
@@ -862,7 +833,7 @@ void updateScore(Position p)
             lines1[0].push_back('1');
         }
     }
-    // ºá
+    // æ¨ª
     for (i = 0; i < SIZE; i++)
     {
 
@@ -882,7 +853,7 @@ void updateScore(Position p)
             lines1[1].push_back('1');
         }
     }
-    // ·´Ğ±¸Ü
+    // åæ–œæ 
     for (i = p.x - min(p.x, p.y), j = p.y - min(p.x, p.y); i < SIZE && j < SIZE; i++, j++)
     {
         if (board[i][j] == role)
@@ -901,7 +872,7 @@ void updateScore(Position p)
             lines1[2].push_back('1');
         }
     }
-    // Ğ±¸Ü
+    // æ–œæ 
     for (i = p.x + min(p.y, SIZE - 1 - p.x), j = p.y - min(p.y, SIZE - 1 - p.x); i >= 0 && j < SIZE; i--, j++)
     {
         if (board[i][j] == role)
@@ -924,7 +895,7 @@ void updateScore(Position p)
     int lineScore[4] = {0};
     int line1Score[4] = {0};
 
-    // ¼ÆËã·ÖÊı
+    // è®¡ç®—åˆ†æ•°
     for (i = 0; i < 4; i++)
     {
         vector<int> result = acs.ACSearch(lines[i]);
@@ -941,89 +912,87 @@ void updateScore(Position p)
     }
 
     int a = p.y;
-    int b = SIZE + p.x;
-    int c = 2 * SIZE + (p.y - p.x + 10);
-    int d = 2 * SIZE + 21 + (p.x + p.y - 4);
-    // ¼õÈ¥ÒÔÇ°µÄ¼ÇÂ¼
-    for (i = 0; i < 2; i++)
-    {
-        allScore[i] -= scores[i][a];
-        allScore[i] -= scores[i][b];
-    }
+    int b = p.x;
+    int c = p.y - p.x + 10;
+    int d = p.y + p.x - 4;
+    // å‡å»ä»¥å‰çš„è®°å½•
+    allScore[0] -= scores[0][a][0];
+    allScore[0] -= scores[1][b][0];
+    allScore[1] -= scores[0][a][1];
+    allScore[1] -= scores[1][b][1];
 
-    // scoresË³Ğò Êú¡¢ºá¡¢\¡¢/
-    scores[0][a] = lineScore[0];
-    scores[1][a] = line1Score[0];
-    scores[0][b] = lineScore[1];
-    scores[1][b] = line1Score[1];
+    // scoresé¡ºåº ç«–ã€æ¨ªã€\ã€/
+    scores[0][a][0] = lineScore[0];
+    scores[0][a][1] = line1Score[0];
+    scores[1][b][0] = lineScore[1];
+    scores[1][b][1] = line1Score[1];
 
-    // ¼ÓÉÏĞÂµÄ¼ÇÂ¼
-    for (i = 0; i < 2; i++)
-    {
-        allScore[i] += scores[i][a];
-        allScore[i] += scores[i][b];
-    }
+    // åŠ ä¸Šæ–°çš„è®°å½•
+    allScore[0] += scores[0][a][0];
+    allScore[0] += scores[1][b][0];
+    allScore[1] += scores[0][a][1];
+    allScore[1] += scores[1][b][1];
 
-    if (p.y - p.x >= -10 && p.y - p.x <= 10) // µ±Æå×ÓÔÚÁ½¸ö¶Ô½ÇÏßÉÏÎ§³ÉµÄÇøÓòÄÚÊ±
+    if (p.y - p.x >= -10 && p.y - p.x <= 10) // å½“æ£‹å­åœ¨ä¸¤ä¸ªå¯¹è§’çº¿ä¸Šå›´æˆçš„åŒºåŸŸå†…æ—¶
     {
 
         for (i = 0; i < 2; i++)
-            allScore[i] -= scores[i][c];
+            allScore[i] -= scores[2][c][i];
 
-        scores[0][c] = lineScore[2];
-        scores[1][c] = line1Score[2];
+        scores[2][c][0] = lineScore[2];
+        scores[2][c][1] = line1Score[2];
 
         for (i = 0; i < 2; i++)
-            allScore[i] += scores[i][c];
+            allScore[i] += scores[2][c][i];
     }
 
     if (p.x + p.y >= 4 && p.x + p.y <= 24)
     {
 
         for (i = 0; i < 2; i++)
-            allScore[i] -= scores[i][d];
+            allScore[i] -= scores[3][d][i];
 
-        scores[0][d] = lineScore[3];
-        scores[1][d] = line1Score[3];
+        scores[3][d][0] = lineScore[3];
+        scores[3][d][1] = line1Score[3];
 
         for (i = 0; i < 2; i++)
-            allScore[i] += scores[i][d];
+            allScore[i] += scores[3][d][i];
     }
 }
 
 void rollbackScore(int x, int y)
 {
     int a = y;
-    int b = SIZE + x;
-    int c = 2 * SIZE + (y - x + 10);
-    int d = 2 * SIZE + 21 + (x + y - 4);
+    int b = x;
+    int c = y - x + 10;
+    int d = x + y - 4;
     for (int i = 0; i < 2; i++)
     {
-        allScore[i] -= scores[i][a];
-        allScore[i] -= scores[i][b];
-        scores[i][a] = 0; // ½«¸ÃÎ»ÖÃµÄ·ÖÊıÇåÁã
-        scores[i][b] = 0;
+        allScore[i] -= scores[0][a][i];
+        allScore[i] -= scores[1][b][i];
+        scores[0][a][i] = 0; // å°†è¯¥ä½ç½®çš„åˆ†æ•°æ¸…é›¶
+        scores[1][b][i] = 0;
     }
 
     if (y - x >= -10 && y - x <= 10)
     {
         for (int i = 0; i < 2; i++)
         {
-            allScore[i] -= scores[i][c];
-            scores[i][c] = 0;
+            allScore[i] -= scores[2][c][i];
+            scores[2][c][i] = 0;
         }
     }
     if (x + y >= 4 && x + y <= 24)
     {
         for (int i = 0; i < 2; i++)
         {
-            allScore[i] -= scores[i][d];
-            scores[i][d] = 0;
+            allScore[i] -= scores[3][d][i];
+            scores[3][d][i] = 0;
         }
     }
 }
 
-// ¾ÖÃæÆÀ¹Àº¯Êı£¬¸øÒ»¸ö¾ÖÃæÆÀ·Ö
+// å±€é¢è¯„ä¼°å‡½æ•°ï¼Œç»™ä¸€ä¸ªå±€é¢è¯„åˆ†
 int evaluateSituation(Role role)
 {
 
@@ -1039,7 +1008,7 @@ int evaluateSituation(Role role)
 }
 int depth4time = 0;
 
-// alpha-beta¼ôÖ¦
+// alpha-betaå‰ªæ
 int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDepth)
 {
     HashItem::Flag flag = HashItem::ALPHA;
@@ -1048,13 +1017,13 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
     {
         return score;
     }
-    // ÆÀ¹Àµ±Ç°¾ÖÃæ
+    // è¯„ä¼°å½“å‰å±€é¢
     int score1 = evaluateSituation(currentSearchRole);
     int score2 = evaluateSituation(currentSearchRole == HUMAN ? COMPUTOR : HUMAN);
 
     if (score1 >= 50000)
     {
-        return MAX_SCORE - 1000 - (limitDepth - depth); // Èç¹ûµ±Ç°¾ÖÃæÒÑ¾­Ê¤Àû£¬·µ»Ø×î´ó·ÖÊı
+        return MAX_SCORE - 1000 - (limitDepth - depth); // å¦‚æœå½“å‰å±€é¢å·²ç»èƒœåˆ©ï¼Œè¿”å›æœ€å¤§åˆ†æ•°
     }
     if (score2 >= 50000)
     {
@@ -1066,17 +1035,17 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
         zh.recordHashItem(depth, score1 - score2, HashItem::EXACT);
         return score1 - score2;
     }
-    clock_t endTime = clock();
-    if (endTime - startTime > timeLimit * (double)CLOCKS_PER_SEC)
-    {
-        return score1 - score2;
-    }
+    /* clock_t endTime = clock();
+     if (endTime - startTime > timeLimit * (double)CLOCKS_PER_SEC)
+     {
+         return score1 - score2;
+     }*/
     int count = 0;
 
-    priority_queue<Position, vector<Position>, compare> possiblePositions; // ´æ´¢¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
+    priority_queue<Position, vector<Position>, compare> possiblePositions; // å­˜å‚¨å¯èƒ½å‡ºç°çš„ä½ç½®
 
-    const unordered_set<Position, PointHash, PointEqual> &tmpPossiblePositions = pp_manager.GetCurrentPossiblePositions(); // µ±Ç°¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
-    // ¶Ôµ±Ç°¿ÉÄÜ³öÏÖµÄÎ»ÖÃ½øĞĞ´ÖÂÔÆÀ·Ö
+    const unordered_set<Position, PointHash, PointEqual> &tmpPossiblePositions = pp_manager.GetCurrentPossiblePositions(); // å½“å‰å¯èƒ½å‡ºç°çš„ä½ç½®
+    // å¯¹å½“å‰å¯èƒ½å‡ºç°çš„ä½ç½®è¿›è¡Œç²—ç•¥è¯„åˆ†
     for (auto iter = tmpPossiblePositions.begin(); iter != tmpPossiblePositions.end(); iter++)
     {
         possiblePositions.push(Position(iter->x, iter->y, evaluatePoint(*iter)));
@@ -1095,21 +1064,21 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
 
     if (depth == limitDepth)
     {
-        pointnum = POINT_NUM;
+        pointnum += 10;
     }
 
-    // ¶Ô¿ÉÄÜ³öÏÖµÄÎ»ÖÃ½øĞĞÆÀ·ÖÅÅĞò
+    // å¯¹å¯èƒ½å‡ºç°çš„ä½ç½®è¿›è¡Œè¯„åˆ†æ’åº
     while (!possiblePositions.empty())
     {
         Position p = possiblePositions.top();
 
         possiblePositions.pop();
-        // ·ÅÖÃÆå×Ó
+        // æ”¾ç½®æ£‹å­
         board[p.x][p.y] = currentSearchRole;
         zh.currentZobristValue ^= zh.boardZobristValue[currentSearchRole - 1][p.x][p.y];
         updateScore(p);
 
-        // Ôö¼Ó¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
+        // å¢åŠ å¯èƒ½å‡ºç°çš„ä½ç½®
         p.score = 0;
 
         pp_manager.AddPossiblePositions2(board, p);
@@ -1117,14 +1086,14 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
 
         val = -abSearch(depth - 1, -beta, -alpha, currentSearchRole == HUMAN ? COMPUTOR : HUMAN, limitDepth);
 
-        // È¡ÏûÉÏÒ»´ÎÔö¼ÓµÄ¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
+        // å–æ¶ˆä¸Šä¸€æ¬¡å¢åŠ çš„å¯èƒ½å‡ºç°çš„ä½ç½®
         pp_manager.Rollback();
-        // È¡Ïû·ÅÖÃ
+        // å–æ¶ˆæ”¾ç½®
         board[p.x][p.y] = 0;
         zh.currentZobristValue ^= zh.boardZobristValue[currentSearchRole - 1][p.x][p.y];
         updateScore(p);
 
-        if (val >= beta) // µ±val >= betaÊ±£¬µ±Ç°½Úµã²»»á±»Ñ¡Ôñ£¬ËùÒÔÖ±½Ó·µ»Øbeta
+        if (val >= beta) // å½“val >= betaæ—¶ï¼Œå½“å‰èŠ‚ç‚¹ä¸ä¼šè¢«é€‰æ‹©ï¼Œæ‰€ä»¥ç›´æ¥è¿”å›beta
         {
             zh.recordHashItem(depth, beta, HashItem::BETA);
             return beta;
@@ -1151,11 +1120,11 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
     return alpha;
 }
 
-// »ñµÃÏÂÒ»²½µÄ×ß·¨
+// è·å¾—ä¸‹ä¸€æ­¥çš„èµ°æ³•
 Position getAGoodMove()
 {
     int i = initDepth;
-    startTime = clock(); // ¼ÇÂ¼¿ªÊ¼Ê±¼ä
+    startTime = clock(); // è®°å½•å¼€å§‹æ—¶é—´
     int alpha = MIN_SCORE;
     int beta = MAX_SCORE;
     int valWINDOW = 100;
@@ -1175,7 +1144,7 @@ Position getAGoodMove()
         beta = score + valWINDOW;
         i++;
 
-        clock_t endTime = clock(); // ¼ÇÂ¼½áÊøÊ±¼ä
+        clock_t endTime = clock(); // è®°å½•ç»“æŸæ—¶é—´
         if (endTime - startTime > threshold)
         {
             break;
@@ -1184,7 +1153,7 @@ Position getAGoodMove()
     return searchResult;
 }
 
-// ³õÊ¼»¯º¯Êı£¬²åÈëÌØÕ÷ºÍ·ÖÖµ
+// åˆå§‹åŒ–å‡½æ•°ï¼Œæ’å…¥ç‰¹å¾å’Œåˆ†å€¼
 void init()
 {
     vector<string> patternStrs;
@@ -1193,13 +1162,13 @@ void init()
         patternStrs.emplace_back(patterns[i].pattern);
     }
 
-    // ³õÊ¼»¯ACSearcher
+    // åˆå§‹åŒ–ACSearcher
     acs.LoadPattern(patternStrs);
     acs.BuildGotoTable();
     acs.BuildFailTable();
 }
 
-// ÈËÀàÏÂÆå£¬´«¸ø½çÃæ
+// äººç±»ä¸‹æ£‹ï¼Œä¼ ç»™ç•Œé¢
 Position nextStep(int x, int y)
 {
 
@@ -1207,7 +1176,7 @@ Position nextStep(int x, int y)
     zh.currentZobristValue ^= zh.boardZobristValue[HUMAN - 1][x][y];
     updateScore(Position(x, y));
 
-    // Ôö¼Ó¿ÉÄÜ³öÏÖµÄÎ»ÖÃ
+    // å¢åŠ å¯èƒ½å‡ºç°çš„ä½ç½®
     if (addflag && doubleadd)
         pp_manager.AddPossiblePositions2(board, Position(x, y));
 
@@ -1232,7 +1201,7 @@ void updataSituation(int x, int y, int role)
 }
 void rollbackSituation(int x, int y, int role)
 {
-    board[x][y] = EMPTY;
+    board[x][y] = 0;
     zh.currentZobristValue ^= zh.boardZobristValue[role - 1][x][y];
     rollbackScore(x, y);
     pp_manager.Rollback();
@@ -1322,7 +1291,7 @@ int main()
     init();
     int new_x, new_y;
     int x, y, n;
-    // »Ö¸´Ä¿Ç°µÄÆåÅÌĞÅÏ¢
+    // æ¢å¤ç›®å‰çš„æ£‹ç›˜ä¿¡æ¯
     cin >> n;
     if (n == 1)
     {
@@ -1339,7 +1308,7 @@ int main()
                 edgestart(new_x, new_y, x, y);
             }
         }
-        else // ÎÒ·½ÏÈÊÖÏÂÔÚÆ½ºâµã
+        else // æˆ‘æ–¹å…ˆæ‰‹ä¸‹åœ¨å¹³è¡¡ç‚¹
         {
             new_x = 7;
             new_y = 1;
@@ -1390,7 +1359,7 @@ int main()
                     addflag = 0;
                 updataSituation(x, y, 1);
             }
-            else if (i != 0) // ÈËÀà½»»»
+            else if (i != 0) // äººç±»äº¤æ¢
             {
                 addflag = 0;
                 rollbackSituation(lastx, lasty, COMPUTOR);
@@ -1407,7 +1376,7 @@ int main()
             {
                 updataSituation(x, y, 2);
             }
-            else if (i == 0) // ai½»»»
+            else if (i == 0) // aiäº¤æ¢
             {
 
                 addflag = 1;
@@ -1420,9 +1389,9 @@ int main()
         cin >> x >> y;
         if (x != -1)
         {
-            board[x][y] = 1; // ¶Ô·½
+            board[x][y] = 1; // å¯¹æ–¹
         }
-        else if (i != 0) // ÈËÀà½»»»
+        else if (i != 0) // äººç±»äº¤æ¢
         {
             new_x = 7;
             new_y = 4;
@@ -1430,20 +1399,22 @@ int main()
             return 0;
         }
 
-        // ´ËÊ±board[][]Àï´æ´¢µÄ¾ÍÊÇµ±Ç°ÆåÅÌµÄËùÓĞÆå×ÓĞÅÏ¢,xºÍy´æµÄÊÇ¶Ô·½×î½üÒ»²½ÏÂµÄÆå
+        // æ­¤æ—¶board[][]é‡Œå­˜å‚¨çš„å°±æ˜¯å½“å‰æ£‹ç›˜çš„æ‰€æœ‰æ£‹å­ä¿¡æ¯,xå’Œyå­˜çš„æ˜¯å¯¹æ–¹æœ€è¿‘ä¸€æ­¥ä¸‹çš„æ£‹
 
         /************************************************************************************/
-        /***********ÔÚÏÂÃæÌî³äÄãµÄ´úÂë£¬¾ö²ß½á¹û£¨±¾·½½«Âä×ÓµÄÎ»ÖÃ£©´æÈënew_xºÍnew_yÖĞ****************/
+        /***********åœ¨ä¸‹é¢å¡«å……ä½ çš„ä»£ç ï¼Œå†³ç­–ç»“æœï¼ˆæœ¬æ–¹å°†è½å­çš„ä½ç½®ï¼‰å­˜å…¥new_xå’Œnew_yä¸­****************/
 
-        // Ö´ĞĞ×îÓÅµÄÏÂÒ»²½
+        // æ‰§è¡Œæœ€ä¼˜çš„ä¸‹ä¸€æ­¥
         Position p = nextStep(x, y);
+        clock_t endTime = clock();
+        printf("%lf", (endTime - startTime) / (double)CLOCKS_PER_SEC);
         new_x = p.x;
         new_y = p.y;
-        /***********ÔÚÉÏ·½Ìî³äÄãµÄ´úÂë£¬¾ö²ß½á¹û£¨±¾·½½«Âä×ÓµÄÎ»ÖÃ£©´æÈënew_xºÍnew_yÖĞ****************/
+        /***********åœ¨ä¸Šæ–¹å¡«å……ä½ çš„ä»£ç ï¼Œå†³ç­–ç»“æœï¼ˆæœ¬æ–¹å°†è½å­çš„ä½ç½®ï¼‰å­˜å…¥new_xå’Œnew_yä¸­****************/
         /************************************************************************************/
 
-        // ÆåÅÌ
-        // ÏòÆ½Ì¨Êä³ö¾ö²ß½á¹û
+        // æ£‹ç›˜
+        // å‘å¹³å°è¾“å‡ºå†³ç­–ç»“æœ
     }
     printf("%d %d\n", new_x, new_y);
     return 0;
