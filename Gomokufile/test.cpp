@@ -28,6 +28,7 @@ const double iterLimit = 0.1;
 const int firstPOINT_NUM = 8;
 const int midPOINT_NUM = 85;
 const int initDepth = 8;
+const float HUMAN_W = 1;
 
 int addflag = 2;
 int doubleadd = 1;
@@ -45,7 +46,7 @@ public:
     int x;
     int y;
     int score;
-    int lineScore[2][4] = {0};
+    int lineScore[2][4] = { 0 };
     Position(int x = 0, int y = 0, int score = 0)
     {
         this->x = x;
@@ -53,7 +54,7 @@ public:
         this->score = score;
     }
 
-    bool operator==(const Position &pos) const
+    bool operator==(const Position& pos) const
     {
         return x == pos.x && y == pos.y;
     }
@@ -61,7 +62,7 @@ public:
 
 struct compare
 {
-    bool operator()(const Position &a, const Position &b)
+    bool operator()(const Position& a, const Position& b)
     {
         if (a.score != b.score)
         {
@@ -80,7 +81,7 @@ struct compare
 
 struct PointHash
 {
-    std::size_t operator()(const Position &p) const
+    std::size_t operator()(const Position& p) const
     {
         return std::hash<int>()(p.x) ^ (std::hash<int>()(p.y) << 1);
     }
@@ -88,7 +89,7 @@ struct PointHash
 
 struct PointEqual
 {
-    bool operator()(const Position &lhs, const Position &rhs) const
+    bool operator()(const Position& lhs, const Position& rhs) const
     {
         return lhs.x == rhs.x && lhs.y == rhs.y;
     }
@@ -118,7 +119,7 @@ struct Pattern
 /*---------------------------head-----------------------------*/
 
 /*------------------------全局变量-------------------------*/
-int board[15][15] = {0};
+int board[15][15] = { 0 };
 int scores[4][21][2]; // 保存棋局分数
 int allScore[2];      // 局面总评分（2个角色）
 vector<Pattern> patterns = {
@@ -154,7 +155,7 @@ vector<Pattern> patterns = {
     {"10100", 20},
     {"10010", 20},
     {"01001", 20},
-    {"10001", 20}};
+    {"10001", 20} };
 
 // priority_queue<Position, vector<Position>, compare> topPossiblePositions;
 //  存储搜索结果，即下一步棋子的位置
@@ -264,16 +265,13 @@ ZobristHash zh;
 
 /*---------------------------ACSearcher-----------------------------*/
 
-using namespace std;
-
 // trie树节点
-struct ACNode
-{
+struct ACNode {
     ACNode(int p, char c)
-        : parent(p),
-          ch(c),
-          fail(-1)
     {
+        this->parent = p;
+        this->ch = c;
+        this->fail = -1;
     }
 
     char ch;
@@ -283,186 +281,188 @@ struct ACNode
     int parent;
 };
 
-// AC算法类
+//AC算法类
 class ACSearcher
 {
 public:
     ACSearcher();
+    ~ACSearcher();
 
-    void LoadPattern(const vector<string> &paterns);
+    void LoadPattern(const vector<string>& paterns);
     void BuildGotoTable();
     void BuildFailTable();
-    vector<int> ACSearch(const string &text); // 返回匹配到的模式的索引
+    vector<int> ACSearch(const string& text);           //返回匹配到的模式的索引
 
-private:
-    int maxState;           // 最大状态数
-    vector<ACNode> nodes;   // trie树
-    vector<string> paterns; // 需要匹配的模式
 
-    void AddState(int parent, char ch); // 初始化新状态
+
+    int maxState;                                       //最大状态数
+    vector<ACNode> nodes;                               //trie树
+    vector<string> paterns;                             //需要匹配的模式
+
+    void AddState(int parent, char ch);                                    //初始化新状态
 };
 
+
+
+
 ACSearcher::ACSearcher()
-    : maxState(0)
 {
-    // 初始化根节点
+    this->maxState = 0;
+    //初始化根节点
     AddState(-1, 'a');
     nodes[0].fail = -1;
+
 }
 
-void ACSearcher::LoadPattern(const vector<string> &paterns)
+
+ACSearcher::~ACSearcher()
 {
+}
+
+
+void ACSearcher::LoadPattern(const vector<string>& paterns) {
     this->paterns = paterns;
 }
 
-void ACSearcher::BuildGotoTable()
-{
+void ACSearcher::BuildGotoTable() {
     assert(nodes.size());
 
-    unsigned int i, j;
-    for (i = 0; i < paterns.size(); i++)
-    {
-        // 从根节点开始
+    for (int i = 0; i < paterns.size(); i++) {
+        //从根节点开始
         int currentIndex = 0;
-        for (j = 0; j < paterns[i].size(); j++)
-        {
-            if (nodes[currentIndex].sons.find(paterns[i][j]) == nodes[currentIndex].sons.end())
-            {
-                nodes[currentIndex].sons[paterns[i][j]] = ++maxState;
+        //for (int j = 0; j < paterns[i].size(); j++) {
+        //    if (nodes[currentIndex].sons.find(paterns[i][j]) == nodes[currentIndex].sons.end()) {
+        //        maxState++;
+        //        nodes[currentIndex].sons[paterns[i][j]] = maxState;
 
-                // 生成新节点
-                AddState(currentIndex, paterns[i][j]);
+        //        //生成新节点
+        //        AddState(currentIndex, paterns[i][j]);
+        //        currentIndex = maxState;
+        //    }
+        //    else {
+        //        currentIndex = nodes[currentIndex].sons[paterns[i][j]];
+        //    }
+        //}
+        ACNode* node_ptr = &nodes[currentIndex];
+        for (auto& x : paterns[i])
+        {
+            if (node_ptr->sons.find(x) == nodes[currentIndex].sons.end())
+            {
+                maxState++;
+                node_ptr->sons[x] = maxState;
+
+                AddState(currentIndex, x);
                 currentIndex = maxState;
             }
             else
             {
-                currentIndex = nodes[currentIndex].sons[paterns[i][j]];
+                currentIndex = node_ptr->sons[x];
             }
+            node_ptr = &nodes[currentIndex];
         }
 
-        nodes[currentIndex].output.push_back(i);
+        node_ptr->output.push_back(i);
     }
 }
 
-void ACSearcher::BuildFailTable()
-{
+void ACSearcher::BuildFailTable() {
     assert(nodes.size());
 
-    // 中间节点收集器
+    //中间节点收集器
     vector<int> midNodesIndex;
 
-    // 给第一层的节点设置fail为0，并把第二层节点加入到midState里
-    ACNode root = nodes[0];
+    //给第一层的节点设置fail为0，并把第二层节点加入到midState里
+    ACNode& root = nodes[0];
 
-    unordered_map<char, int>::iterator iter1, iter2;
-    for (iter1 = root.sons.begin(); iter1 != root.sons.end(); iter1++)
-    {
-        nodes[iter1->second].fail = 0;
-        ACNode &currentNode = nodes[iter1->second];
-
-        // 收集第三层节点
-        for (iter2 = currentNode.sons.begin(); iter2 != currentNode.sons.end(); iter2++)
-        {
-            midNodesIndex.push_back(iter2->second);
+    for (auto& iter : root.sons) {
+        nodes[iter.second].fail = 0;
+        for (auto& iter2 : nodes[iter.second].sons) {
+            midNodesIndex.push_back(iter2.second);
         }
     }
 
-    // 广度优先遍历
-    while (midNodesIndex.size())
-    {
+    //广度优先遍历
+    while (!midNodesIndex.empty()) {
         vector<int> newMidNodesIndex;
 
-        unsigned int i;
-        for (i = 0; i < midNodesIndex.size(); i++)
-        {
-            ACNode &currentNode = nodes[midNodesIndex[i]];
+        int i;
+        for (i = 0; i < midNodesIndex.size(); i++) {
+            ACNode* currentNode = &nodes[midNodesIndex[i]];
 
-            // 以下循环为寻找当前节点的fail值
-            int currentFail = nodes[currentNode.parent].fail;
-            while (true)
-            {
-                ACNode &currentFailNode = nodes[currentFail];
+            //以下循环为寻找当前节点的fail值
+            int currentFail = nodes[currentNode->parent].fail;
+            while (true) {
+                ACNode& currentFailNode = nodes[currentFail];
 
-                if (currentFailNode.sons.find(currentNode.ch) != currentFailNode.sons.end())
-                {
-                    // 成功找到该节点的fail值
-                    currentNode.fail = currentFailNode.sons.find(currentNode.ch)->second;
+                if (currentFailNode.sons.find(currentNode->ch) != currentFailNode.sons.end()) {
+                    //成功找到该节点的fail值
+                    currentNode->fail = currentFailNode.sons.find(currentNode->ch)->second;
 
-                    // 后缀包含
-                    if (nodes[currentNode.fail].output.size())
-                    {
-                        currentNode.output.insert(currentNode.output.end(), nodes[currentNode.fail].output.begin(), nodes[currentNode.fail].output.end());
+                    //后缀包含
+                    if (nodes[currentNode->fail].output.size()) {
+                        currentNode->output.insert(currentNode->output.end(), nodes[currentNode->fail].output.begin(), nodes[currentNode->fail].output.end());
                     }
-
                     break;
                 }
-                else
-                {
+                else {
                     currentFail = currentFailNode.fail;
                 }
 
-                // 如果是根节点
-                if (currentFail == -1)
-                {
-                    currentNode.fail = 0;
+                //如果是根节点
+                if (currentFail == -1) {
+                    currentNode->fail = 0;
                     break;
                 }
             }
 
-            // 收集下一层节点
-            for (iter1 = currentNode.sons.begin(); iter1 != currentNode.sons.end(); iter1++)
-            {
-                // 收集下一层节点
-                newMidNodesIndex.push_back(iter1->second);
+            //收集下一层节点
+            for (auto& iter : currentNode->sons) {
+                newMidNodesIndex.push_back(iter.second);
             }
         }
         midNodesIndex = newMidNodesIndex;
     }
 }
 
-vector<int> ACSearcher::ACSearch(const string &text)
-{
+vector<int> ACSearcher::ACSearch(const string& text) {
     vector<int> result;
-
-    // 初始化为根节点
+    //初始化为根节点
     int currentIndex = 0;
+    ACNode* node_ptr = &nodes[currentIndex];
+    int i;
+    //unordered_map<char, int>::iterator tmpIter;
 
-    unsigned int i;
-    unordered_map<char, int>::iterator tmpIter;
-    for (i = 0; i < text.size();)
-    {
-        // 顺着trie树查找
-        if ((tmpIter = nodes[currentIndex].sons.find(text[i])) != nodes[currentIndex].sons.end())
-        {
+    for (i = 0; i < text.size();) {
+        //顺着trie树查找
+        auto tmpIter = node_ptr->sons.find(text[i]);
+        if (tmpIter != node_ptr->sons.end()) {
             currentIndex = tmpIter->second;
             i++;
         }
-        else
-        {
-            // 失配的情况
-            while (nodes[currentIndex].fail != -1 && nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end())
-            {
-                currentIndex = nodes[currentIndex].fail;
+        else {
+            //失配的情况
+            while (node_ptr->fail != -1 && node_ptr->sons.find(text[i]) == node_ptr->sons.end()) {
+                currentIndex = node_ptr->fail;
+                node_ptr = &nodes[currentIndex];
             }
 
-            // 如果没有成功找到合适的fail
-            if (nodes[currentIndex].sons.find(text[i]) == nodes[currentIndex].sons.end())
-            {
+            //如果没有成功找到合适的fail
+            if (node_ptr->sons.find(text[i]) == node_ptr->sons.end()) {
                 i++;
             }
         }
+        node_ptr = &nodes[currentIndex];
 
-        if (nodes[currentIndex].output.size())
-        {
-            result.insert(result.end(), nodes[currentIndex].output.begin(), nodes[currentIndex].output.end());
+        if (!node_ptr->output.empty()) {
+            result.insert(result.end(), node_ptr->output.begin(), node_ptr->output.end());
         }
+
     }
 
     return result;
 }
 
-void ACSearcher::AddState(int parent, char ch)
-{
+void ACSearcher::AddState(int parent, char ch) {
     nodes.push_back(ACNode(parent, ch));
     assert(nodes.size() - 1 == maxState);
 }
@@ -473,7 +473,7 @@ ACSearcher acs;
 
 /*-----------------------------启发评估函数--------------------------------*/
 // 根据位置评分，其中board是当前棋盘，p是位置，role是评分角色，比如role是Human则是相对人类评分，比如role是computer则是对于电脑评分
-int evaluatePoint(Position &p)
+int evaluatePoint(Position& p)
 {
     int result;
     int i, j;
@@ -616,28 +616,34 @@ int evaluatePoint(Position &p)
         }
 
         score_human += p.lineScore[0][i];
-        if (p.lineScore[1][i] == 720)
+        if (p.lineScore[1][i] >= 720)
         {
             w_2++;
         }
         score_ai += p.lineScore[1][i];
     }
 
-    if (w_1 >= 2)
+    /*if (w_1 >= 2)
     {
         score_human *= w_1;
     }
     if (w_2 >= 2)
     {
         score_ai *= w_2;
-    }
+    }*/
+
+    score_human *= HUMAN_W;
 
     result = score_ai + score_human;
+    if (w_1 >= 1 || w_2 >= 1)
+    {
+        result *= (w_1 + w_2);
+	}
 
     return result;
 }
 
-int evaluatePointline(Position &p, int x) // 横
+int evaluatePointline(Position& p, int x) // 横
 {
     int result;
     int i, j;
@@ -792,25 +798,32 @@ int evaluatePointline(Position &p, int x) // 横
         }
 
         score_human += p.lineScore[0][i];
-        if (p.lineScore[1][i] == 720)
+        if (p.lineScore[1][i] >= 720)
         {
             w_2++;
         }
         score_ai += p.lineScore[1][i];
     }
 
-    if (w_1 >= 2)
-    {
-        score_human *= w_1;
-    }
-    if (w_2 >= 2)
-    {
-        score_ai *= w_2;
-    }
+    /*if (w_1 >= 2)
+     {
+         score_human *= w_1;
+     }
+     if (w_2 >= 2)
+     {
+         score_ai *= w_2;
+     }*/
+
+    score_human *= HUMAN_W;
 
     result = score_ai + score_human;
+    if (w_1 >= 1 || w_2 >= 1)
+    {
+        result *= (w_1 + w_2);
+    }
 
     return result;
+
 }
 
 /*-----------------------------启发评估函数--------------------------------*/
@@ -830,12 +843,12 @@ class PossiblePositionManager
 {
 public:
     PossiblePositionManager();
-    void AddPossiblePositions(int board[SIZE][SIZE], const Position &p);
-    void AddPossiblePositions2(int board[SIZE][SIZE], const Position &p);
+    void AddPossiblePositions(int board[SIZE][SIZE], const Position& p);
+    void AddPossiblePositions2(int board[SIZE][SIZE], const Position& p);
     void InitPossiblePositions(int board[SIZE][SIZE]);
-    void ScoringAddPossiblePositions(int board[SIZE][SIZE], const Position &p);
+    void ScoringAddPossiblePositions(int board[SIZE][SIZE], const Position& p);
     void Rollback();
-    const unordered_set<Position, PointHash, PointEqual> &GetCurrentPossiblePositions();
+    const unordered_set<Position, PointHash, PointEqual>& GetCurrentPossiblePositions();
     // set<Position> pruningPositions;
 private:
     unordered_set<Position, PointHash, PointEqual> currentPossiblePositions;
@@ -843,7 +856,7 @@ private:
     vector<pair<int, int>> directions;
 };
 
-bool isValidPosition(const Position &pos)
+bool isValidPosition(const Position& pos)
 {
     return pos.x >= 0 && pos.x < SIZE && pos.y >= 0 && pos.y < SIZE;
 }
@@ -860,11 +873,11 @@ PossiblePositionManager::PossiblePositionManager()
     directions.emplace_back(pair<int, int>(0, -1));
 }
 
-void PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const Position &p)
+void PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const Position& p)
 {
 
     unordered_set<Position, PointHash, PointEqual> newPositions;
-    for (const auto &direct : directions)
+    for (const auto& direct : directions)
     {
         Position newPos(p.x + direct.first, p.y + direct.second);
         if (isValidPosition(newPos) && board[newPos.x][newPos.y] == EMPTY)
@@ -890,12 +903,12 @@ void PossiblePositionManager::AddPossiblePositions(int board[SIZE][SIZE], const 
 
     allHistory.push_back(ph); // 保存历史记录
 }
-void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const Position &p)
+void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const Position& p)
 {
 
     // 加入下了的棋外围两格的点
     unordered_set<Position, PointHash, PointEqual> newPositions;
-    for (const auto &direct : directions)
+    for (const auto& direct : directions)
     {
         Position newPos(p.x + direct.first, p.y + direct.second);
         if (isValidPosition(newPos) && board[newPos.x][newPos.y] == EMPTY)
@@ -908,7 +921,7 @@ void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const
                 newPositions.insert(newPos);
         }
     }
-    for (const auto &direct : directions)
+    for (const auto& direct : directions)
     {
         Position newPos(p.x + 2 * direct.first, p.y + 2 * direct.second);
         if (isValidPosition(newPos) && board[newPos.x][newPos.y] == EMPTY)
@@ -962,7 +975,7 @@ void PossiblePositionManager::AddPossiblePositions2(int board[SIZE][SIZE], const
 void PossiblePositionManager::InitPossiblePositions(int board[SIZE][SIZE])
 {
     unordered_set<Position, PointHash, PointEqual> tempPositions;
-    for (auto &it : currentPossiblePositions)
+    for (auto& it : currentPossiblePositions)
     {
         Position p = it;
         p.score = evaluatePoint(p);
@@ -971,7 +984,7 @@ void PossiblePositionManager::InitPossiblePositions(int board[SIZE][SIZE])
     currentPossiblePositions = tempPositions;
 }
 
-void PossiblePositionManager::ScoringAddPossiblePositions(int board[SIZE][SIZE], const Position &p)
+void PossiblePositionManager::ScoringAddPossiblePositions(int board[SIZE][SIZE], const Position& p)
 {
     int i, j;
     unordered_set<Position, PointHash, PointEqual> newPositions;
@@ -1048,7 +1061,7 @@ void PossiblePositionManager::ScoringAddPossiblePositions(int board[SIZE][SIZE],
         }
     }
 
-    for (const auto &direct : directions) // 增加新可能落子点
+    for (const auto& direct : directions) // 增加新可能落子点
     {
         Position newPos(p.x + direct.first, p.y + direct.second);
 
@@ -1089,7 +1102,7 @@ void PossiblePositionManager::Rollback()
     // 回溯
 
     // 清除掉前一步加入的点
-    for (auto &pos : hi.newPositions)
+    for (auto& pos : hi.newPositions)
         currentPossiblePositions.erase(pos);
 
     // 加回前一步删除的点
@@ -1097,13 +1110,13 @@ void PossiblePositionManager::Rollback()
         currentPossiblePositions.insert(hi.removedPosition);
 
     // 更新前一步更新的点
-    for (auto &pos : hi.UpdataPositions)
+    for (auto& pos : hi.UpdataPositions)
     {
         currentPossiblePositions.insert(pos); // 为了更新被删除的点
     }
 }
 
-const unordered_set<Position, PointHash, PointEqual> &PossiblePositionManager::GetCurrentPossiblePositions()
+const unordered_set<Position, PointHash, PointEqual>& PossiblePositionManager::GetCurrentPossiblePositions()
 {
     return currentPossiblePositions;
 }
@@ -1200,8 +1213,8 @@ void updateScore(Position p)
         }
     }
 
-    int lineScore[4] = {0};
-    int line1Score[4] = {0};
+    int lineScore[4] = { 0 };
+    int line1Score[4] = { 0 };
 
     // 计算分数
     for (i = 0; i < 4; i++)
@@ -1230,9 +1243,9 @@ void updateScore(Position p)
     allScore[1] -= scores[1][b][1];
 
     // scores顺序 竖、横、\、/
-    scores[0][a][0] = lineScore[0];
+    scores[0][a][0] = HUMAN_W * lineScore[0];
     scores[0][a][1] = line1Score[0];
-    scores[1][b][0] = lineScore[1];
+    scores[1][b][0] = HUMAN_W * lineScore[1];
     scores[1][b][1] = line1Score[1];
 
     // 加上新的记录
@@ -1241,29 +1254,30 @@ void updateScore(Position p)
     allScore[1] += scores[0][a][1];
     allScore[1] += scores[1][b][1];
 
-    if (p.y >= p.x - 10 && p.y <= p.x + 10) // 当棋子在两个对角线上围成的区域内时
+    if (p.y - p.x >= -10 && p.y - p.x <= 10) // 当棋子在两个对角线上围成的区域内时
     {
 
-        allScore[0] -= scores[2][c][0];
-        allScore[1] -= scores[2][c][1];
+        for (i = 0; i < 2; i++)
+            allScore[i] -= scores[2][c][i];
 
-        scores[2][c][0] = lineScore[2];
+        scores[2][c][0] = HUMAN_W * lineScore[2];
         scores[2][c][1] = line1Score[2];
 
-        allScore[0] += scores[2][c][0];
-        allScore[1] += scores[2][c][1];
+        for (i = 0; i < 2; i++)
+            allScore[i] += scores[2][c][i];
     }
 
     if (p.x + p.y >= 4 && p.x + p.y <= 24)
     {
-        allScore[0] -= scores[3][d][0];
-        allScore[1] -= scores[3][d][1];
 
-        scores[3][d][0] = lineScore[3];
+        for (i = 0; i < 2; i++)
+            allScore[i] -= scores[3][d][i];
+
+        scores[3][d][0] = HUMAN_W * lineScore[3];
         scores[3][d][1] = line1Score[3];
 
-        allScore[0] += scores[3][d][0];
-        allScore[1] += scores[3][d][1];
+        for (i = 0; i < 2; i++)
+            allScore[i] += scores[3][d][i];
     }
 }
 
@@ -1349,7 +1363,7 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
     {
         return score1 - score2;
     }
-    int cnt = 0;
+    int count = 0;
     int pointnum = POINT_NUM;
     if (!addflag)
     {
@@ -1363,7 +1377,7 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
 
     priority_queue<Position, vector<Position>, compare> possiblePositions; // 优先队列，用于对可能出现的位置进行评分排序
 
-    const unordered_set<Position, PointHash, PointEqual> &tmpPossiblePositions = pp_manager.GetCurrentPossiblePositions(); // 当前可能出现的位置
+    const unordered_set<Position, PointHash, PointEqual>& tmpPossiblePositions = pp_manager.GetCurrentPossiblePositions(); // 当前可能出现的位置
 
     for (auto iter = tmpPossiblePositions.begin(); iter != tmpPossiblePositions.end(); iter++)
     {
@@ -1418,8 +1432,8 @@ int abSearch(int depth, int alpha, int beta, Role currentSearchRole, int limitDe
             }
         }
 
-        cnt++;
-        if (cnt >= pointnum)
+        count++;
+        if (count >= pointnum)
         {
             break;
         }
@@ -1509,27 +1523,46 @@ Position nextStep(int x, int y)
 }
 
 int needSwapboard[15][15] =
-    {
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
+{
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+    {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1} };
+
+int needTieTie[15][15] =
+{
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+};
 int isSwap(int x, int y)
 {
     return !needSwapboard[x][y];
 }
-void edgestart(int &new_x, int &new_y, int x, int y)
+void edgestart(int& new_x, int& new_y, int x, int y)
 {
     if (x <= 4)
     {
@@ -1663,7 +1696,7 @@ int main()
             else if (i != 0) // 人类交换
             {
                 addflag = 0;
-                rollbackSituation(lastx, lasty, 2);
+                rollbackSituation(lastx, lasty, COMPUTOR);
                 updataSituation(lastx, lasty, 1);
             }
             else
@@ -1691,10 +1724,17 @@ int main()
         if (x != -1)
         {
             board[x][y] = 1; // 对方
+            if (n == 2 && needTieTie[x][y])
+            {
+                new_x = x - 1;
+                new_y = y - 1;
+                printf("%d %d\n", new_x, new_y);
+                return 0;
+            }
         }
         else if (i != 0) // 人类交换
         {
-            new_x = 7;
+            new_x = 6;
             new_y = 4;
             printf("%d %d\n", new_x, new_y);
             return 0;
@@ -1713,11 +1753,11 @@ int main()
         /* clock_t end = clock();
          double duration = (double)(end - start) / CLOCKS_PER_SEC;
          cout << "time: " << duration << endl;*/
-        /***********在上方填充你的代码，决策结果（本方将落子的位置）存入new_x和new_y中****************/
-        /************************************************************************************/
+         /***********在上方填充你的代码，决策结果（本方将落子的位置）存入new_x和new_y中****************/
+         /************************************************************************************/
 
-        // 棋盘
-        // 向平台输出决策结果
+         // 棋盘
+         // 向平台输出决策结果
     }
     printf("%d %d\n", new_x, new_y);
     return 0;
