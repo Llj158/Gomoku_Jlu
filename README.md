@@ -3,6 +3,7 @@
 ## Gomoku-Swap1
 
 平台：[botzone](https://www.botzone.org.cn) 
+bot:deepblue
 
 **主要算法：αβ剪枝，启发式搜索，AC自动机，置换表**
 
